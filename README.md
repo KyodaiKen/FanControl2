@@ -49,5 +49,8 @@ Send `psc` and it goes into a mode where it spits out the same sensor data as ab
 It's planned but not yet finished.
 You can use PuTTy or other terminal programs to send and receive commands via the Arduino's COM interface. The speed is 9600 baud and the rest is default.
 
+### LibreHardwareMonitor integration
+I plan to integrate the sensor readings into LibreHardwareMonitor, too. I will discuss it with the developers of LHM, first.
+
 ### Different micro controllers
 It is planned to use a different micro controller in the future for example to get more PWM channels and also more usable interrupt channels to measure the actual fan speeds in RPM. The schematics and PCB layout will only be for this new microcontroller.
