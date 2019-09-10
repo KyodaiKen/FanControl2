@@ -8,7 +8,7 @@ For example, when the system is busy, the software of the motherboard manufactur
 ## What can this piece of firmware do for me?
 This software can read three NTC thermistors of any kind. You just need to adjust the resistor values and the Steinhart-Hart coefficients to calibrate those. With this information, the controller outputs three fan speed PWM signals (25 KHz) which can be used with any PWM controllable PC fan! You can find the pin details in the code. Until I release the schematic and PCB layout, you can find tutorials on how to connect them via DuckDuckGo, Startpage or whatever you tend to use.
 
-### How do I programe fan curves, though?
+### How do I program fan curves, though?
 You can now program curves via COM interface into it.
 
 You open a com console and send
