@@ -23,9 +23,11 @@ This number resulted from the EEPROM in Arduino Nano having a whopping 512 bytes
 
 Send `gs` and you get sensor readings and fan speeds:
 
-```22.0 20.3
+```
+22.0 20.3
 !NAN 100.0
-20.0 23.9```
+20.0 23.9
+```
 
 First number is temperature, second is fan speed in percent! I will get a different controller board, make a new PCB and stuff to also measure the fan speed in RPM soon! One each channel.
 
