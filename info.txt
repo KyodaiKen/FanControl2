@@ -1,0 +1,22 @@
+Instead of coding fan curves in C++ and flash the firmware, you can now program curves via COM interface into it.
+
+You open a com console with it and say
+sc <curve 0...2> <x y x y x y x y ... space separated> to program a curve.
+
+Each curve is for a sensor. Curve 0 is water temperature over ambient for the rad fans, curve 1 is reserved for another temperature sensor and fan header and curve 2 is ambient and case fans. Points are linearily interpolated inbetween, so when you have an off temperature the fan speed will be extrapolated between the 2 nearest points in a linear fashion.
+
+gc <curve> lists the points of your curve
+
+You can program up to 168 curve points x and y which gives you 84 xy coordinates for temp (x) and fan speed (y) per curve!
+This number resulted from the EEPROM in Arduino Nano having a whopping 512 bytes of storage. :joy:
+
+Write gs and you get sensor readings and fan speeds:
+```22.0 20.3
+!NAN 100.0
+20.0 23.9```
+
+First number is temperature, second is fan speed in percent! I will get a different controller board, make a new PCB and stuff to also measure the fan speed in RPM soon! One each channel.
+
+Write psc and it goes into a mode where it spits out the same sensor data as above every second and you can stop this mode with !psc.
+
+I just need a nice GUI for it on PC xD
