@@ -1,7 +1,7 @@
 # FanControl2
 This is a DIY project that has also a PCB circuit and design on EasyEDA. It will be published later as I have to redesign it.
 ## Description
-This project is for water cooling enthusiasts. Be it custom loop or AiO, the fan control of motherboard leave open a lot to be desired.
+This project is for water cooling enthusiasts. Be it custom loop or AiO, the fan control of motherboard leaves a lot to be desired.
 
 For example, when the system is busy, the software of the motherboard manufacturers might stall and your fan speed is not being updated anymore which can lead to overheating issues especially when overclocking.
 
