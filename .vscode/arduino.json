@@ -1,5 +1,5 @@
 {
-    "sketch": "4chPWMFanControl.ino",
+    "sketch": "sketch.ino",
     "board": "arduino:avr:nano",
     "configuration": "cpu=atmega328old",
     "port": "COM5"

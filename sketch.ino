@@ -186,7 +186,15 @@ void printFloat(float value, int places) {
 ////Little helpers to keep it clean and simple////
 //Function for reading the temperature at a defined analog pin
 float getTemperature(int pin, float pulldownR) {
-  float logR=log(pulldownR*(1023.0/(float)analogRead(pin)-1.0));
+  float logR=0;
+  
+  //Multiprobe for smoother values
+  for(byte i=0;i<100;i++) {
+    logR+=log(pulldownR*(1023.0/(float)analogRead(pin)-1.0));
+    delay(1);
+  }
+  logR=logR/100;
+  
   switch (pin) {
     case 0: //Water sensor for new case and custom loop calibrated REMOVE OFFSET CAL!!!
       return (1.0/(0.0011431512594581995 + 0.00023515745037380024 * logR + 6.187191114586837e-8 * logR * logR * logR))-273.15;
@@ -407,7 +415,7 @@ void loop()
 
 /* curves
 sc 0 0 35 99 35
-sc 0 0 0 1 16 3 24 5 35 99 35
+sc 0 0 0 1 20 3 25 5 38 99 38
 sc 1 0 0
 sc 2 0 60 99 60
 sc 2 0 0 8 0 22 22 33 55 35 70 99 70
