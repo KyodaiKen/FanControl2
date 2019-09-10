@@ -35,6 +35,12 @@ First number is temperature, second is fan speed in percent! I will get a differ
 
 Send `psc` and it goes into a mode where it spits out the same sensor data as above every second and you can stop this mode with !psc.
 
+## Error messages
+* `e0` - The curve you want to store does not exist. Enter a number between 0 and 2.
+* `e1` - Curve points are not even, you need 2 pairs of values for x and y data points.
+* `e2` - The number of curve points exceeds the maximum (84) that the EEPROM can store for each curve.
+* `EEPROM BAD` - When you use a new controller and flash this firmware, there could be garbage in it's EEPROM and the data plausability check detected it. Simple default curves were loaded and you are prompted to send your custom ones.
+
 ## UI for your PC
 It's planned but not yet finished.
 You can use PuTTy or other terminal programs to send and receive commands via the Arduino's COM interface. The speed is 9600 baud and the rest is default.
