@@ -6,9 +6,12 @@ This project is for water cooling enthusiasts. Be it custom loop or AiO, the fan
 For example, when the system is busy, the software of the motherboard manufacturers might stall and your fan speed is not being updated anymore which can lead to overheating issues especially when overclocking.
 
 ## What can this piece of firmware do for me?
+This software can read three PTC thermistors of any kind. You just need to adjust the resistor values and the Steinhart-Hart coefficients to calibrate those. With this information, the controller outputs three fan speed PWM signals (25 KHz) which can be used with any PWM controllable PC fan! You can find the pin details in the code. Until I release the schematic and PCB layout, you can find tutorials on how to connect them via DuckDuckGo, Startpage or whatever you tend to use.
+
+### How do I programe fan curves, though?
 You can now program curves via COM interface into it.
 
-You open a com console with it and say
+You open a com console and send
 `sc <curve 0...2> <x y x y x y x y ... space separated>` to program a curve.
 *For example*
 ```
@@ -20,8 +23,8 @@ Each curve is for a sensor. Curve 0 is water temperature over ambient for the ra
 
 `gc <curve>` lists the points of your curve you've programmed.
 
-You can program up to 168 curve points x and y which gives you 84 xy coordinates for temp (x) and fan speed (y) per curve!
-This number resulted from the EEPROM in Arduino Nano having a whopping 512 bytes of storage.
+You can program up to **168** curve points x and y which gives you **84** xy coordinates for temp (x) and fan speed (y) per curve!
+This number resulted from the EEPROM in Arduino Nano having a whopping **512 bytes** of storage.
 
 Send `gs` and you get sensor readings and fan speeds:
 
@@ -41,6 +44,10 @@ Send `psc` and it goes into a mode where it spits out the same sensor data as ab
 * `e2` - The number of curve points exceeds the maximum (84) that the EEPROM can store for each curve.
 * `EEPROM BAD` - When you use a new controller and flash this firmware, there could be garbage in it's EEPROM and the data plausability check detected it. Simple default curves were loaded and you are prompted to send your custom ones.
 
-## UI for your PC
+## Future plans
+### UI for your PC
 It's planned but not yet finished.
 You can use PuTTy or other terminal programs to send and receive commands via the Arduino's COM interface. The speed is 9600 baud and the rest is default.
+
+### Different micro controllers
+It is planned to use a different micro controller in the future for example to get more PWM channels and also more usable interrupt channels to measure the actual fan speeds in RPM. The schematics and PCB layout will only be for this new microcontroller.
