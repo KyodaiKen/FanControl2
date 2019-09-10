@@ -11,7 +11,9 @@ You can now program curves via COM interface into it.
 You open a com console with it and say
 `sc <curve 0...2> <x y x y x y x y ... space separated>` to program a curve.
 *For example*
-```sc 0 0 0 1 15 2 20 3 35 99 35``
+```
+sc 0 0 0 1 15 2 20 3 35 99 35
+```
 The first 0 is the curve ID, more on that below. The next numbers separated by spaces are `x y x y x y` representations of the curve coordinates. X is the temperature, y is the fan speed.
 
 Each curve is for a sensor. Curve 0 is water temperature over ambient for the rad fans, curve 1 is reserved for another temperature sensor and fan header and curve 2 is ambient and case fans. Points are linearily interpolated inbetween, so when you have an off temperature the fan speed will be extrapolated between the 2 nearest points in a linear fashion. If you want to change how it works, you can change the code and flash it again!
