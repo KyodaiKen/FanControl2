@@ -4,20 +4,14 @@
 #include <arduino.h>
 #include <EEPROM.h>
 
-#define DEBUG
-//#define EN_RPM
+//#define DEBUG
+#define CONSOLE_MODE
 
 ////Configuration////
 //Thermistor (analog) pins
 int thmA = 0;
 int thmB = 1;
 int thmC = 3;
-
-#ifdef EN_RPM
-unsigned long ppt = 2; //pulses per turn
-unsigned long tc; //counter
-unsigned long rpm;
-#endif
 
 //Thermistor calibration offset (°K/C)
 float calOffsetA = 0;
@@ -47,7 +41,11 @@ byte cdtal[3];
 unsigned long now;
 unsigned long prev;
 
+#ifdef CONSOLE_MODE
+bool psc=true;
+#elif
 bool psc=false;
+#endif
 
 ////Setup////
 void setup() {
@@ -139,71 +137,35 @@ void setup() {
   Serial.println("EEPROM BAD, default curves loaded and flashed. Please set up new curves if desired!");
 
   EEPROM_OK:;
-  #ifdef EN_RPM
-  attachInterrupt(0, count, FALLING);
-  pinMode(2, INPUT);
-  #endif
 }
-
-#ifdef EN_RPM
-//Count fan RPM pulses
-void count() { tc++; }
-#endif
 
 // printFloat prints out the float 'value' rounded to 'places' places after the decimal point
-void printFloat(float value, int places) {
-  int digit;
-  float tens = 0.1;
-  int tenscount = 0;
-  int i;
-  float tempfloat = value;
-  if(isnan(value)) { Serial.print("!NAN"); return; }
-  float d = 0.5; if (value < 0) d *= -1.0;
-  for (i = 0; i < places; i++) d/= 10.0;
-  tempfloat +=  d;
-  if (value < 0)
-    tempfloat *= -1.0;
-  while ((tens * 10.0) <= tempfloat) {
-    tens *= 10.0;
-    tenscount += 1;
-  }
-  if (value < 0) Serial.print('-'); if (tenscount <= 1) Serial.print(0, DEC);
-  for (i=0; i< tenscount; i++) {
-    digit = (int) (tempfloat/tens);
-    Serial.print(digit, DEC);
-    tempfloat = tempfloat - ((float)digit * tens);
-    tens /= 10.0;
-  }
-  if (places <= 0) return; Serial.print('.');  
-  for (i = 0; i < places; i++) {
-    tempfloat *= 10.0;
-    digit = (int) tempfloat;
-    Serial.print(digit,DEC);  
-    tempfloat = tempfloat - (float) digit;
-  }
-}
+void printFloat(float value, int places) {int digit;float tens=0.1;int tenscount=0;int i;float tempfloat=value;if(isnan(value)){Serial.print("!NAN");return;}float d=0.5;if(value<0)d*=-1.0;for(i=0;i<places;i++)d/=10.0;tempfloat +=  d;if(value<0)tempfloat *= -1.0;while((tens*10.0)<=tempfloat){tens*=10.0;tenscount+=1;}if(value<0)Serial.print('-');if(tenscount<=1)Serial.print(0,DEC);for(i=0;i<tenscount;i++){digit=(int)(tempfloat/tens);Serial.print(digit,DEC);tempfloat=tempfloat-((float)digit*tens);tens /= 10.0;}if(places<=0)return;Serial.print('.');for(i=0;i<places;i++){tempfloat*=10.0;digit=(int)tempfloat;Serial.print(digit,DEC);tempfloat=tempfloat-(float)digit;}}
 
 ////Little helpers to keep it clean and simple////
 //Function for reading the temperature at a defined analog pin
 float getTemperature(int pin, float pulldownR) {
   float logR=0;
+  float temperature=0;
   
   //Multiprobe for smoother values
-  for(byte i=0;i<100;i++) {
+  for(byte i=0;i<50;i++) {
     logR+=log(pulldownR*(1023.0/(float)analogRead(pin)-1.0));
     delay(1);
   }
-  logR=logR/100;
+  logR=logR/50;
   
   switch (pin) {
-    case 0: //Water sensor for new case and custom loop calibrated REMOVE OFFSET CAL!!!
-      return (1.0/(0.0011431512594581995 + 0.00023515745037380024 * logR + 6.187191114586837e-8 * logR * logR * logR))-273.15;
-    case 3: //Ambient sensor for new case and custom loop calibrated REMOVE OFFSET CAL!!!
-      return (1.0/(0.0028561410879575405 + -0.00005243877323181964 * logR + 0.0000012584771402890711 * logR * logR * logR))-273.15;
-    default:
-      return (1.0/(-0.1745637090e-03+4.260403485e-04*logR+(-5.098359524e-07)*logR*logR*logR))-273.15;
+    case 0: //Water sensor
+      temperature=(1.0/(0.0011431512594581995 + 0.00023515745037380024 * logR + 6.187191114586837e-8 * logR * logR * logR))-273.15;
+    case 3: //Ambient sensor
+      temperature=(1.0/(0.0028561410879575405 + -0.00005243877323181964 * logR + 0.0000012584771402890711 * logR * logR * logR))-273.15;
+    default: //Generic sensor
+      temperature=(1.0/(-0.1745637090e-03+4.260403485e-04*logR+(-5.098359524e-07)*logR*logR*logR))-273.15;
       break;
   }
+
+  return temperature;
 }
 
 //Curves for calculating the duty cycle from temperature are here!
@@ -211,12 +173,14 @@ float getTemperature(int pin, float pulldownR) {
 //This function sets the actual duty cycle you programmed.
 void setDutyCycle(float t0, float t1, float t2) {
   float dcA=100, dcB=100, dcC=100;
-  float tW = t0-t2; if(tW<0) tW=0;
+  float tW = t0-t2; if(tW<0) tW=0.1;
   byte p0=0; byte p1=0;
   bool found=false;
 
   //Find nearest curve points and interpolate
-  if(tW>0) {
+  if(tW==0) {
+    dcA=cdta[0][1];
+  } else {
     for(byte i=0;i<cdtal[0];i+=2) {
       if(cdta[0][i]>=tW) {
         p0=i-2;
@@ -228,12 +192,12 @@ void setDutyCycle(float t0, float t1, float t2) {
       p1=p0+2;
       dcA=((tW-cdta[0][p0])*(cdta[0][p1+1]-cdta[0][p0+1])/(cdta[0][p1]-cdta[0][p0]))+cdta[0][p0+1];
     }
-  } else {
-    if(!isnan(tW))dcA=0;
   }
 
-  if(t1>0) {
-    p0=0;p1=0;found=false;
+  p0=0;p1=0;found=false;
+  if(t1==0) {
+    dcA=cdta[1][1];
+  } else {
     for(byte i=0;i<cdtal[1];i+=2) {
       if(cdta[1][i]>=t1) {
         p0=i-2;
@@ -245,12 +209,12 @@ void setDutyCycle(float t0, float t1, float t2) {
       p1=p0+2;
       dcB=((t1-cdta[1][p0])*(cdta[1][p1+1]-cdta[1][p0+1])/(cdta[1][p1]-cdta[1][p0]))+cdta[1][p0+1];
     }
-  } else {
-    if(!isnan(t1))dcB=0;
   }
 
-  if(t2>0) {
-    p0=0;p1=0;found=false;
+  p0=0;p1=0;found=false;
+  if(t2==0) {
+    dcA=cdta[2][1];
+  } else {
     for(byte i=0;i<cdtal[2];i+=2) {
       if(cdta[2][i]>=t2) {
         p0=i-2;
@@ -262,8 +226,6 @@ void setDutyCycle(float t0, float t1, float t2) {
       p1=p0+2;
       dcC=((t2-cdta[2][p0])*(cdta[2][p1+1]-cdta[2][p0+1])/(cdta[2][p1]-cdta[2][p0]))+cdta[2][p0+1]+0.25*dcA;
     }
-  } else {
-    if(!isnan(t2))dcC=0;
   }
 
   if(dcA<0)dcA=0; if(dcA>100)dcA=100;
@@ -322,8 +284,6 @@ void loop()
         goto stop;
       }
       String curveData = r.substring(5)+" ";
-      //Serial.print("For curve "); Serial.print(curve, DEC); Serial.println(", this is the data: "+curveData);
-
       for(i=0;i<curveData.length();i++) {
         if(curveData[i]==' ') len++;
       }
@@ -342,11 +302,15 @@ void loop()
           oldi=i+1;
         }
       }
+      if(data[0]!=0) {
+        Serial.println("e3");
+        goto stop;
+      }
       //Write curve into memory
       for(i=0;i<len;i++) {
         cdta[curve][i]=data[i];
         if((i%2==0&&data[i]>100)||(i%2==1&&data[i]>100)) {
-        Serial.println("e3");
+        Serial.println("e4");
         goto stop;
         }
       }
@@ -391,7 +355,7 @@ void loop()
   }
 
   if(psc) {
-    if(millis()>=prev+1000) {
+    if(millis()>=prev+800) {
       printFloat(tA,1); Serial.print(" "); printFloat(mDcA,1); Serial.println("");
       printFloat(tB,1); Serial.print(" "); printFloat(mDcB,1); Serial.println("");
       printFloat(tC,1); Serial.print(" "); printFloat(mDcC,1); Serial.println("");
@@ -401,22 +365,5 @@ void loop()
       prev=millis();
     }
   }
-
-  #ifdef EN_RPM
-  if(millis()>=prev+1000) {
-    detachInterrupt(0);
-    rpm=(60*1000/ppt)/(millis()-prev)*tc; prev=millis(); tc=0;
-    attachInterrupt(0, count, FALLING);
-  }
-  #endif
-
   stop:;
 }
-
-/* curves
-sc 0 0 35 99 35
-sc 0 0 0 1 20 3 25 5 38 99 38
-sc 1 0 0
-sc 2 0 60 99 60
-sc 2 0 0 8 0 22 22 33 55 35 70 99 70
-*/

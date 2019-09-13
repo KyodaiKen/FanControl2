@@ -42,7 +42,8 @@ Send `psc` and it goes into a mode where it spits out the same sensor data as ab
 * `e0` - The curve you want to store does not exist. Enter a number between 0 and 2.
 * `e1` - Curve points are not even, you need 2 pairs of values for x and y data points.
 * `e2` - The number of curve points exceeds the maximum (84) that the EEPROM can store for each curve.
-* `e3` - The curve data is invalid. The maximum temperature is 100°C, the maximum fan speed is 100 percent.
+* `e3` - Every curve must start with a 0 degree temperature fan speed.
+* `e4` - The curve data is invalid. The maximum temperature is 100°C, the maximum fan speed is 100 percent.
 * `EEPROM BAD` - When you use a new controller and flash this firmware, there could be garbage in it's EEPROM and the data plausability check detected it. Simple default curves were loaded and you are prompted to send your custom ones.
 
 ## Future plans
