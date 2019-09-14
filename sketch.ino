@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <EEPROM.h>
 
-#define DEBUG
-//define CONSOLE_MODE
+//#define DEBUG
+#define CONSOLE_MODE
 
 ////Configuration////
 #define N_SENSORS 3
@@ -91,7 +91,7 @@ void setup() {
   //Configure channel's PWM output pins
   cpp[0]=3;
   cpp[1]=9;
-  cpp[3]=10;
+  cpp[2]=10;
 
   //Set pins up for output
   unsigned int i;
@@ -235,7 +235,7 @@ void writeMatrix() {
     for(unsigned int s=0;s<N_SENSORS;s++) {
       byte buff[4]; float f=m[c][s];
       packFloat(buff, f);
-      for(unsigned int i=0;i<sizeof(buff);i++){EEPROM.write(MATRIX_START+c*N_CURVES*4+s*4+i, buff[i]);Serial.print(buff[i], HEX);Serial.print(",");}
+      for(unsigned int i=0;i<sizeof(buff);i++){EEPROM.write(MATRIX_START+c*N_CURVES*4+s*4+i, buff[i]);}
       #ifdef DEBUG
       Serial.print(" - EEPROM.write() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4, DEC);
       #endif
@@ -248,9 +248,9 @@ void writeMatrix() {
 // printFloat prints out the float 'value' rounded to 'places' places after the decimal point
 //void printFloat(float value, int places) {int digit;float tens=0.1;int tenscount=0;int i;float tempfloat=value;if(isnan(value)){Serial.print("!NAN");return;}float d=0.5;if(value<0)d*=-1.0;for(i=0;i<places;i++)d/=10.0;tempfloat +=  d;if(value<0)tempfloat *= -1.0;while((tens*10.0)<=tempfloat){tens*=10.0;tenscount+=1;}if(value<0)Serial.print('-');if(tenscount<=1)Serial.print(0,DEC);for(i=0;i<tenscount;i++){digit=(int)(tempfloat/tens);Serial.print(digit,DEC);tempfloat=tempfloat-((float)digit*tens);tens /= 10.0;}if(places<=0)return;Serial.print('.');for(i=0;i<places;i++){tempfloat*=10.0;digit=(int)tempfloat;Serial.print(digit,DEC);tempfloat=tempfloat-(float)digit;}}
 
-void printFloat(float value) {
+void printFloat(float value, unsigned int w, unsigned int p) {
   char s[8];
-  dtostrf(value, 5, 2, s);
+  dtostrf(value, w, p, s);
   Serial.print(s);
 }
 
@@ -326,18 +326,25 @@ void setDutyCycles() {
   }
 }
 
-
 //Print sensors
-void printSensors() {
+void printSensors(bool ondemand) {
+  if(!ondemand)Serial.println("");
+  Serial.print("t ");
+  for(unsigned int s=0;s<N_SENSORS;s++) {
+    printFloat(t[s],6,2);
+    if(s<N_SENSORS-1)Serial.print(" ");
+  }
+  Serial.println("");
+  Serial.print("m ");
   for(unsigned int c=0;c<N_CURVES;c++) {
-    Serial.print(c, DEC); Serial.print(" ");
-    for(unsigned int s=0;s<N_SENSORS;s++) {
-      //if(!isnan(ct[s])){
-        printFloat(t[s]);Serial.print("° ");
-      //}
-    }
-    printFloat(ct[c]);Serial.print("° ");
-    printFloat(cdc[c]);Serial.println("%");
+    printFloat(ct[c],6,2);
+    if(c<N_SENSORS-1)Serial.print(" ");
+  }
+  Serial.println("");
+  Serial.print("s ");
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    printFloat(cdc[c],6,2);
+    if(c<N_SENSORS-1)Serial.print(" ");
   }
 }
 
@@ -363,112 +370,115 @@ void loop()
       r+=c;
     }
   }
-  if(r!="") {
-    if(r.startsWith("sc ")) {
-      curve = r.substring(3,4).toInt();
-      if(curve>=N_CURVES) {
-        Serial.println("e0");
-        goto stop;
-      }
-      String curveData = r.substring(5)+" ";
-      for(i=0;i<curveData.length();i++) {
-        if(curveData[i]==' ') len++;
-      }
-      if(len>=169) {
-        Serial.println("e1");
-        goto stop;
-      }
-      if(len%2>0) {
-        Serial.println("e2");
-        goto stop;
-      }
-      byte data[len];
-      for(i=0;i<curveData.length();i++) {
-        if(curveData[i]==' ') {
-          data[c++]=curveData.substring(oldi,i).toInt();
-          oldi=i+1;
+  if(psc==false) {
+    if(r!="") {
+      if(r.startsWith("sc ")) {
+        curve = r.substring(3,4).toInt();
+        if(curve>=N_CURVES) {
+          Serial.println("e0");
+          goto stop;
         }
-      }
-      if(data[0]!=0) {
-        Serial.println("e3");
-        goto stop;
-      }
-      //Write curve into memory
-      for(i=0;i<len;i++) {
-        cdta[curve][i]=data[i];
-        if((i%2==0&&data[i]>100)||(i%2==1&&data[i]>100)) {
-        Serial.println("e4");
-        goto stop;
+        String curveData = r.substring(5)+" ";
+        for(i=0;i<curveData.length();i++) {
+          if(curveData[i]==' ') len++;
         }
-      }
-      cdtal[curve]=len;
-      writeCurves();
-      Serial.println("ok");
-    }
-    if(r.startsWith("sm ")) {
-      curve=r.substring(3,4).toInt();
-      if(curve>=N_CURVES) {
-        Serial.println("e0");
-        goto stop;
-      }
-      String matrixData = r.substring(5)+" ";
-      len=0;
-      for(i=0;i<matrixData.length();i++) {
-        if(matrixData[i]==' ') len++;
-      }
-      if(len!=N_SENSORS) {
-        Serial.println("e1");
-        goto stop;
-      }
-      //Write matrix into memory
-      float data[len];
-      for(i=0;i<matrixData.length();i++) {
-        if(matrixData[i]==' ') {
-          data[c++]=matrixData.substring(oldi,i).toFloat();
-          oldi=i+1;
+        if(len>=169) {
+          Serial.println("e1");
+          goto stop;
         }
+        if(len%2>0) {
+          Serial.println("e2");
+          goto stop;
+        }
+        byte data[len];
+        for(i=0;i<curveData.length();i++) {
+          if(curveData[i]==' ') {
+            data[c++]=curveData.substring(oldi,i).toInt();
+            oldi=i+1;
+          }
+        }
+        if(data[0]!=0) {
+          Serial.println("e3");
+          goto stop;
+        }
+        //Write curve into memory
+        for(i=0;i<len;i++) {
+          cdta[curve][i]=data[i];
+          if((i%2==0&&data[i]>100)||(i%2==1&&data[i]>100)) {
+          Serial.println("e4");
+          goto stop;
+          }
+        }
+        cdtal[curve]=len;
+        writeCurves();
+        Serial.println("ok");
       }
-      for(i=0;i<len;i++) m[curve][i]=data[i];
-      //Write to EEPROM:
-      writeMatrix();
-      Serial.println("ok");
-    }
-    if(r.startsWith("gc ")) {
-      curve = r.substring(3,4).toInt();
-      if(curve>=N_CURVES) {
-        Serial.println("e0");
-        goto stop;
+      if(r.startsWith("sm ")) {
+        curve=r.substring(3,4).toInt();
+        if(curve>=N_CURVES) {
+          Serial.println("e0");
+          goto stop;
+        }
+        String matrixData = r.substring(5)+" ";
+        len=0;
+        for(i=0;i<matrixData.length();i++) {
+          if(matrixData[i]==' ') len++;
+        }
+        if(len!=N_SENSORS) {
+          Serial.println("e1");
+          goto stop;
+        }
+        //Write matrix into memory
+        float data[len];
+        for(i=0;i<matrixData.length();i++) {
+          if(matrixData[i]==' ') {
+            data[c++]=matrixData.substring(oldi,i).toFloat();
+            oldi=i+1;
+          }
+        }
+        for(i=0;i<len;i++) m[curve][i]=data[i];
+        //Write to EEPROM:
+        writeMatrix();
+        Serial.println("ok");
       }
-      for(i=0;i<cdtal[curve];i++) {
-        Serial.print(cdta[curve][i], DEC); Serial.print(" ");
+      if(r.startsWith("gc ")) {
+        curve = r.substring(3,4).toInt();
+        if(curve>=N_CURVES) {
+          Serial.println("e0");
+          goto stop;
+        }
+        for(i=0;i<cdtal[curve];i++) {
+          Serial.print(cdta[curve][i], DEC); Serial.print(" ");
+        }
+        Serial.println("");
       }
-      Serial.println("");
-    }
-    if(r.startsWith("gm ")) {
-      curve = r.substring(3,4).toInt();
-      if(curve>=N_CURVES) {
-        Serial.println("e0");
-        goto stop;
+      if(r.startsWith("gm ")) {
+        curve = r.substring(3,4).toInt();
+        if(curve>=N_CURVES) {
+          Serial.println("e0");
+          goto stop;
+        }
+        for(i=0;i<N_SENSORS;i++) {
+          Serial.print(m[curve][i], DEC); Serial.print(" ");
+        }
+        Serial.println("");
       }
-      for(i=0;i<N_SENSORS;i++) {
-        Serial.print(m[curve][i], DEC); Serial.print(" ");
+      if(r.startsWith("gs")) {
+        printSensors(true);
       }
-      Serial.println("");
-    }
-    if(r.startsWith("gs")) {
-      printSensors();
     }
     if(r.startsWith("psc")) {
       psc=true;
     }
-    if(r.startsWith("!psc")) {
+  } else {
+    if(r.startsWith("!")) {
       psc=false;
     }
   }
 
   if(psc) {
     if(millis()>=prev+1000) {
-      printSensors();
+      printSensors(false);
       prev=millis();
     }
   }
