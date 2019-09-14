@@ -2,55 +2,66 @@
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
 
 #include <arduino.h>
+#include <stdlib.h>
 #include <EEPROM.h>
 
-//#define DEBUG
-#define CONSOLE_MODE
+#define DEBUG
+//define CONSOLE_MODE
 
 ////Configuration////
+#define N_SENSORS 3
+#define N_CURVES 3
 //Thermistor (analog) pins
-int thmA = 0;
-int thmB = 1;
-int thmC = 3;
+int thsp[N_SENSORS];
 
-//Thermistor calibration offset (°K/C)
-float calOffsetA = 0;
-float calOffsetB = 0;
-float calOffsetC = 0;
+//Thermistor calibration (°K/C)
+float thsco[N_SENSORS];
+
+//Thermistor Steinhart-Hart coefficients
+float thscs[N_SENSORS][3];
 
 //Thermistor pulldown resistor value in Ohms - Can also be used for thermistor calibration
-float rPullDownA = 9990;
-float rPullDownB = 9890;
-float rPullDownC = 9960;
+float thsRpd[N_SENSORS];
 
-//PWM channel pin mapping
+//PWM Curve pin mapping
 //You should not change these!
-int ppA = 3;
-int ppB = 9;
-int ppC = 10;
+int cpp[N_CURVES];
+
+//Memorized temperatures
+float t[N_SENSORS];
+float ct[N_CURVES];
 
 //Memorized duty cycles for info output
-float mDcA = 0;
-float mDcB = 0;
-float mDcC = 0;
+float cdc[N_CURVES];
 
 //Memorized curve tables
-byte cdta[3][169];
-byte cdtal[3];
+#define CURVE_UB 158
+byte cdta[N_CURVES][CURVE_UB];
+byte cdtal[N_CURVES];
 
-unsigned long now;
+//Memorized mixer matrix
+#define MATRIX_LENGTH N_SENSORS*N_CURVES*4
+#define MATRIX_START CURVE_UB*N_CURVES
+float m[N_CURVES][N_SENSORS];
+
+#define EEPROM_CHECK_OFFSET 510
+#define EEPROM_CHECK_LENGTH 2
+#define EEPROM_CHECK_0 0xFC
+#define EEPROM_CHECK_1 0xCF
+
 unsigned long prev;
 
 #ifdef CONSOLE_MODE
 bool psc=true;
-#elif
+#endif
+#ifndef CONSOLE_MODE
 bool psc=false;
 #endif
 
+bool eepromok=false;
+
 ////Setup////
 void setup() {
-  //Setup PWM for 25 KHz
-
   /* Pins:
   pin 3 = OC2B (timer 2 PWM output B)
   pin 11 = OC2A (timer 2 PWM output A)
@@ -58,6 +69,33 @@ void setup() {
   pin 10 = OC1A (timer 1 PWM output A)
   pin 5 = OC0B (timer 0 PWM output B)
   pin 6 = OC0A (timer 0 PWM output A) */
+
+  //Configure thermistor pins
+  thsp[0]=0;
+  thsp[1]=1;
+  thsp[2]=3;
+
+  //Configure thermistor pulldown resistor values
+  thsRpd[0]=9990;
+  thsRpd[1]=9890;
+  thsRpd[2]=9960;
+
+  //Configure thermistor calibration offsets and Steinhart-Hart coefficients
+  thsco[0]=0;
+  thsco[1]=0;
+  thsco[2]=0;
+  thscs[0][0]=0.0011431512594581995;thscs[0][1]=0.00023515745037380024;thscs[0][2]=6.187191114586837e-8;
+  thscs[1][0]=-0.1745637090e-03;thscs[1][1]=4.260403485e-04;thscs[1][2]=-5.098359524e-07;
+  thscs[2][0]=0.0028561410879575405;thscs[2][1]=-0.00005243877323181964;thscs[2][2]=0.0000012584771402890711;
+
+  //Configure channel's PWM output pins
+  cpp[0]=3;
+  cpp[1]=9;
+  cpp[3]=10;
+
+  //Set pins up for output
+  unsigned int i;
+  for(i=0;i<N_SENSORS;i++) pinMode(cpp[i], OUTPUT);
 
   // Configure Timer 1 for PWM @ 25 kHz.
   TCCR1A = 0;
@@ -82,41 +120,24 @@ void setup() {
   OCR2A  = 160;
   OCR2B = 0;
 
-  pinMode(3, OUTPUT);
-  pinMode(9, OUTPUT);
-  pinMode(10, OUTPUT);
-
   prev=0;
-  Serial.begin(9600);
+  Serial.begin(115200);
 
-  //Zero curve memory
-  unsigned int i;
-  for(i=0;i<169;i++) {
-    cdta[0][i]=0;
-    cdta[1][i]=0;
-    cdta[2][i]=0;
+  //Zero curve and matrix memory
+  for(unsigned int c=0;c<N_CURVES;c++){
+    for(i=0;i<CURVE_UB;i++)cdta[c][i]=0;cdtal[c]=0;
+    for(unsigned int s=0;s<N_SENSORS;s++)m[c][s]=0;
   }
-  cdtal[0]=0;
-  cdtal[1]=0;
-  cdtal[2]=0;
 
   //for(i=0;i<512;i++) EEPROM.write(i,0);
 
   //Get data from the EEPROM
-  if(EEPROM.read(0)>168||EEPROM.read(170)>168||EEPROM.read(340)>168||
-     EEPROM.read(0)==0||EEPROM.read(170)==0||EEPROM.read(340)==0) goto EEPROM_BAD;
-  for(unsigned int c=0;c<3;c++) {
-    cdtal[c]=EEPROM.read(170*c);
-    if(cdtal[c]>0) {
-      for(i=1;i<=cdtal[c];i++) {
-        cdta[c][i-1]=EEPROM.read(170*c+i);
-        if((cdta[c][i-1]>100&&((i-1)%2)==0)||(cdta[c][i-1]>100&&((i-1)%2)==1)) goto EEPROM_BAD;
-      }
-      #ifdef DEBUG
-      Serial.print("EEPROM.read() "); Serial.print(170*c, DEC); Serial.print(" to "); Serial.print(170*c+1+cdtal[c], DEC); Serial.print(", length "); Serial.println(cdtal[c], DEC);
-      #endif
-    }
-  }
+  if(EEPROM.read(0)>CURVE_UB-1||EEPROM.read(CURVE_UB)>CURVE_UB-1||EEPROM.read(CURVE_UB*2)>CURVE_UB-1||
+     EEPROM.read(0)==0||EEPROM.read(CURVE_UB)==0||EEPROM.read(CURVE_UB*2)==0||
+     (EEPROM.read(EEPROM_CHECK_OFFSET)!=0xFC&&EEPROM.read(EEPROM_CHECK_OFFSET+1)!=0xCF)) goto EEPROM_BAD;
+  readCurves();
+  readMatrix();
+  if(!eepromok) goto EEPROM_BAD;
   goto EEPROM_OK;
 
   EEPROM_BAD:;
@@ -125,116 +146,136 @@ void setup() {
   cdta[0][0]=0; cdta[0][1]=0; cdta[0][2]=0; cdta[0][3]=100;
   cdta[0][0]=0; cdta[1][1]=0; cdta[1][2]=0; cdta[1][3]=100;
   cdta[0][0]=0; cdta[2][1]=0; cdta[2][2]=0; cdta[2][3]=100;
+  m[0][0]=1;m[0][1]=0;m[0][2]=0;
+  m[1][0]=0;m[1][1]=1;m[1][0]=0;
+  m[2][0]=0;m[2][1]=0;m[2][0]=1;
   //Zero EEPROM
   for(i=0;i<512;i++)EEPROM.write(i,0);
   //Write to EEPROM:
-  for(unsigned int c=0;c<3;c++) {
-    if(cdtal[c]>0) {
-      EEPROM.write(170*c, cdtal[c]);
-      for(i=1;i<=cdtal[c];i++) EEPROM.write(170*c+i, cdta[c][i-1]);
-    }
-  }
+  writeCurves();
+  writeMatrix();
+  EEPROM.write(EEPROM_CHECK_OFFSET,0xFC);
+  EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
   Serial.println("EEPROM BAD, default curves loaded and flashed. Please set up new curves if desired!");
 
   EEPROM_OK:;
 }
 
-// printFloat prints out the float 'value' rounded to 'places' places after the decimal point
-void printFloat(float value, int places) {int digit;float tens=0.1;int tenscount=0;int i;float tempfloat=value;if(isnan(value)){Serial.print("!NAN");return;}float d=0.5;if(value<0)d*=-1.0;for(i=0;i<places;i++)d/=10.0;tempfloat +=  d;if(value<0)tempfloat *= -1.0;while((tens*10.0)<=tempfloat){tens*=10.0;tenscount+=1;}if(value<0)Serial.print('-');if(tenscount<=1)Serial.print(0,DEC);for(i=0;i<tenscount;i++){digit=(int)(tempfloat/tens);Serial.print(digit,DEC);tempfloat=tempfloat-((float)digit*tens);tens /= 10.0;}if(places<=0)return;Serial.print('.');for(i=0;i<places;i++){tempfloat*=10.0;digit=(int)tempfloat;Serial.print(digit,DEC);tempfloat=tempfloat-(float)digit;}}
-
-////Little helpers to keep it clean and simple////
-//Function for reading the temperature at a defined analog pin
-float getTemperature(int pin, float pulldownR) {
-  float logR=0;
-  float temperature=0;
-  
-  //Multiprobe for smoother values
-  for(byte i=0;i<50;i++) {
-    logR+=log(pulldownR*(1023.0/(float)analogRead(pin)-1.0));
-    delay(1);
-  }
-  logR=logR/50;
-  
-  switch (pin) {
-    case 0: //Water sensor
-      temperature=(1.0/(0.0011431512594581995 + 0.00023515745037380024 * logR + 6.187191114586837e-8 * logR * logR * logR))-273.15;
-    case 3: //Ambient sensor
-      temperature=(1.0/(0.0028561410879575405 + -0.00005243877323181964 * logR + 0.0000012584771402890711 * logR * logR * logR))-273.15;
-    default: //Generic sensor
-      temperature=(1.0/(-0.1745637090e-03+4.260403485e-04*logR+(-5.098359524e-07)*logR*logR*logR))-273.15;
-      break;
-  }
-
-  return temperature;
+float unpackFloat(const unsigned char *buff) {
+  union {
+    float f;
+    unsigned char b[4];
+  } u;
+  u.b[3] = buff[3];
+  u.b[2] = buff[2];
+  u.b[1] = buff[1];
+  u.b[0] = buff[0];
+  return u.f;
 }
 
-//Curves for calculating the duty cycle from temperature are here!
-//I did this to suit my needs, you can do changes to suit your needs!
-//This function sets the actual duty cycle you programmed.
-void setDutyCycle(float t0, float t1, float t2) {
-  float dcA=100, dcB=100, dcC=100;
-  float tW = t0-t2; if(tW<0) tW=0.1;
-  byte p0=0; byte p1=0;
-  bool found=false;
+int packFloat(void *buf, float x) {
+    unsigned char *b = (unsigned char *)buf;
+    unsigned char *p = (unsigned char *) &x;
+    b[0] = p[0];
+    b[1] = p[1];
+    b[2] = p[2];
+    b[3] = p[3];
+    return 4;
+}
 
-  //Find nearest curve points and interpolate
-  if(tW==0) {
-    dcA=cdta[0][1];
-  } else {
-    for(byte i=0;i<cdtal[0];i+=2) {
-      if(cdta[0][i]>=tW) {
-        p0=i-2;
-        found=true;
-        break;
-      } 
-    }
-    if(found&&p0+2<=cdtal[0]) {
-      p1=p0+2;
-      dcA=((tW-cdta[0][p0])*(cdta[0][p1+1]-cdta[0][p0+1])/(cdta[0][p1]-cdta[0][p0]))+cdta[0][p0+1];
-    }
-  }
-
-  p0=0;p1=0;found=false;
-  if(t1==0) {
-    dcA=cdta[1][1];
-  } else {
-    for(byte i=0;i<cdtal[1];i+=2) {
-      if(cdta[1][i]>=t1) {
-        p0=i-2;
-        found=true;
-        break;
+void readCurves() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    cdtal[c]=EEPROM.read(CURVE_UB*c);
+    if(cdtal[c]>0) {
+      for(unsigned int i=1;i<=cdtal[c];i++) {
+        cdta[c][i-1]=EEPROM.read(CURVE_UB*c+i);
+        if((cdta[c][i-1]>100&&((i-1)%2)==0)||(cdta[c][i-1]>100&&((i-1)%2)==1)) goto EEPROM_BAD;
       }
-    }
-    if(found&&p0+2<=cdtal[1]) {
-      p1=p0+2;
-      dcB=((t1-cdta[1][p0])*(cdta[1][p1+1]-cdta[1][p0+1])/(cdta[1][p1]-cdta[1][p0]))+cdta[1][p0+1];
+      #ifdef DEBUG
+      Serial.print("EEPROM.read() "); Serial.print(CURVE_UB*c, DEC); Serial.print(" to "); Serial.print(CURVE_UB*c+1+cdtal[c], DEC); Serial.print(", length "); Serial.println(cdtal[c], DEC);
+      #endif
     }
   }
+  goto EEPROM_OK;
+  EEPROM_BAD:;
+  eepromok=false;
+  EEPROM_OK:;
+  eepromok=true;
+}
 
-  p0=0;p1=0;found=false;
-  if(t2==0) {
-    dcA=cdta[2][1];
-  } else {
-    for(byte i=0;i<cdtal[2];i+=2) {
-      if(cdta[2][i]>=t2) {
-        p0=i-2;
-        found=true;
+void readMatrix() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    for(unsigned int s=0;s<N_SENSORS;s++) {
+      byte buff[4];
+      for(unsigned int i=0;i<sizeof(buff);i++)buff[i]=EEPROM.read(MATRIX_START+c*N_CURVES*4+s*4+i);
+      #ifdef DEBUG
+      Serial.print("EEPROM.read() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4, DEC);
+      #endif
+      m[c][s]=unpackFloat(buff);
+    }
+  }
+}
+
+void writeCurves() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    if(cdtal[c]>0) {
+      EEPROM.write(CURVE_UB*c, cdtal[c]);
+      for(unsigned int i=1;i<=cdtal[c];i++) EEPROM.write(CURVE_UB*c+i, cdta[c][i-1]);
+      #ifdef DEBUG
+      Serial.print("EEPROM.read() "); Serial.print(CURVE_UB*c, DEC); Serial.print(" to "); Serial.print(CURVE_UB*c+1+cdtal[c], DEC); Serial.print(", length "); Serial.println(cdtal[c], DEC);
+      #endif
+    }
+  }
+  EEPROM.write(EEPROM_CHECK_OFFSET,0xFC);
+  EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
+}
+
+void writeMatrix() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    for(unsigned int s=0;s<N_SENSORS;s++) {
+      byte buff[4]; float f=m[c][s];
+      packFloat(buff, f);
+      for(unsigned int i=0;i<sizeof(buff);i++){EEPROM.write(MATRIX_START+c*N_CURVES*4+s*4+i, buff[i]);Serial.print(buff[i], HEX);Serial.print(",");}
+      #ifdef DEBUG
+      Serial.print(" - EEPROM.write() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4, DEC);
+      #endif
+    }
+  }
+  EEPROM.write(EEPROM_CHECK_OFFSET,0xFC);
+  EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
+}
+
+// printFloat prints out the float 'value' rounded to 'places' places after the decimal point
+//void printFloat(float value, int places) {int digit;float tens=0.1;int tenscount=0;int i;float tempfloat=value;if(isnan(value)){Serial.print("!NAN");return;}float d=0.5;if(value<0)d*=-1.0;for(i=0;i<places;i++)d/=10.0;tempfloat +=  d;if(value<0)tempfloat *= -1.0;while((tens*10.0)<=tempfloat){tens*=10.0;tenscount+=1;}if(value<0)Serial.print('-');if(tenscount<=1)Serial.print(0,DEC);for(i=0;i<tenscount;i++){digit=(int)(tempfloat/tens);Serial.print(digit,DEC);tempfloat=tempfloat-((float)digit*tens);tens /= 10.0;}if(places<=0)return;Serial.print('.');for(i=0;i<places;i++){tempfloat*=10.0;digit=(int)tempfloat;Serial.print(digit,DEC);tempfloat=tempfloat-(float)digit;}}
+
+void printFloat(float value) {
+  char s[8];
+  dtostrf(value, 5, 2, s);
+  Serial.print(s);
+}
+
+////Little helpers to keep it clean and simple////
+//Function for reading the temperatures at a all analog pins
+void getTemperatures() {
+  for(unsigned int s=0;s<N_SENSORS;s++) {
+    t[s]=0;
+    //Multiprobe for smoother values
+    for(byte i=0;i<50;i++) {
+      float logR=log(thsRpd[s]*(1023.0/(float)analogRead(thsp[s])-1.0));
+      t[s]+=(1.0/(thscs[s][0]+thscs[s][1]*logR+thscs[s][2]*logR*logR*logR))-273.15-thsco[s];
+    }
+    t[s]=t[s]/50;
+    if(isnan(t[s])) t[s]=0;
+    /*switch (thsp[s]) {
+      case 0: //Water sensor
+        tr[s]=(1.0/(0.0011431512594581995 + 0.00023515745037380024 * logR + 6.187191114586837e-8 * logR * logR * logR))-273.15;
+      case 3: //Ambient sensor
+        tr[s]=(1.0/(0.0028561410879575405 + -0.00005243877323181964 * logR + 0.0000012584771402890711 * logR * logR * logR))-273.15;
+      default: //Generic sensor
+        tr[s]=(1.0/(-0.1745637090e-03+4.260403485e-04*logR+(-5.098359524e-07)*logR*logR*logR))-273.15;
         break;
-      }
-    }
-    if(found&&p0+2<=cdtal[2]) {
-      p1=p0+2;
-      dcC=((t2-cdta[2][p0])*(cdta[2][p1+1]-cdta[2][p0+1])/(cdta[2][p1]-cdta[2][p0]))+cdta[2][p0+1]+0.25*dcA;
-    }
+    }*/
   }
-
-  if(dcA<0)dcA=0; if(dcA>100)dcA=100;
-  if(dcB<0)dcB=0; if(dcB>100)dcB=100;
-  if(dcC<0)dcC=0; if(dcC>100)dcC=100;
-
-  setPulseWith(ppA,dcA); mDcA=dcA;
-  setPulseWith(ppB,dcB); mDcB=dcB;
-  setPulseWith(ppC,dcC); mDcC=dcC;
 }
 
 //Just to make the control loop more clean
@@ -252,6 +293,54 @@ void setPulseWith(int pin, float pv) {
   }
 }
 
+//Curves for calculating the duty cycle from temperature are here!
+//I did this to suit my needs, you can do changes to suit your needs!
+//This function sets the actual duty cycle you programmed.
+void setDutyCycles() {
+  byte p0=0; byte p1=0;
+  bool found=false;
+
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    float mt=0;
+    for(unsigned int s=0;s<N_SENSORS;s++)mt+=t[s]*m[c][s];
+    mt=(mt<0?0:mt);
+    ct[c]=mt;
+    //Find nearest curve points and interpolate
+    if(mt==0) {
+      cdc[c]=cdta[c][1];
+    } else {
+      for(byte i=0;i<cdtal[c];i+=2) {
+        if(cdta[c][i]>=mt) {
+          p0=i-2;
+          found=true;
+          break;
+        } 
+      }
+      if(found&&p0+2<=cdtal[c]) {
+        p1=p0+2;
+        cdc[c]=((mt-cdta[c][p0])*(cdta[c][p1+1]-cdta[c][p0+1])/(cdta[c][p1]-cdta[c][p0]))+cdta[c][p0+1];
+      }
+    }
+    cdc[c]=(cdc[c]<0?0:cdc[c]);
+    setPulseWith(cpp[c],cdc[c]);
+  }
+}
+
+
+//Print sensors
+void printSensors() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    Serial.print(c, DEC); Serial.print(" ");
+    for(unsigned int s=0;s<N_SENSORS;s++) {
+      //if(!isnan(ct[s])){
+        printFloat(t[s]);Serial.print("° ");
+      //}
+    }
+    printFloat(ct[c]);Serial.print("° ");
+    printFloat(cdc[c]);Serial.println("%");
+  }
+}
+
 ////Main control loop////
 void loop()
 {
@@ -261,10 +350,8 @@ void loop()
   unsigned int len=0;
   byte curve;
 
-  float tA=getTemperature(thmA,rPullDownA)+calOffsetA;
-  float tB=getTemperature(thmB,rPullDownB)+calOffsetB;
-  float tC=getTemperature(thmC,rPullDownC)+calOffsetC;
-  setDutyCycle(tA,tB,tC);
+  getTemperatures();
+  setDutyCycles();
 
   //Watch for serial commands
   String r = "";
@@ -279,7 +366,7 @@ void loop()
   if(r!="") {
     if(r.startsWith("sc ")) {
       curve = r.substring(3,4).toInt();
-      if(curve>=3) {
+      if(curve>=N_CURVES) {
         Serial.println("e0");
         goto stop;
       }
@@ -315,21 +402,40 @@ void loop()
         }
       }
       cdtal[curve]=len;
-      //Write to EEPROM:
-      for(unsigned int c=0;c<3;c++) {
-        if(cdtal[c]>0) {
-          EEPROM.write(170*c, cdtal[c]);
-          for(i=1;i<=cdtal[c];i++) EEPROM.write(170*c+i, cdta[c][i-1]);
-          #ifdef DEBUG
-          Serial.print("EEPROM.write() "); Serial.print(170*c, DEC); Serial.print(" to "); Serial.print(170*c+1+cdtal[c], DEC); Serial.print(", length "); Serial.println(cdtal[c], DEC);
-          #endif
+      writeCurves();
+      Serial.println("ok");
+    }
+    if(r.startsWith("sm ")) {
+      curve=r.substring(3,4).toInt();
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      String matrixData = r.substring(5)+" ";
+      len=0;
+      for(i=0;i<matrixData.length();i++) {
+        if(matrixData[i]==' ') len++;
+      }
+      if(len!=N_SENSORS) {
+        Serial.println("e1");
+        goto stop;
+      }
+      //Write matrix into memory
+      float data[len];
+      for(i=0;i<matrixData.length();i++) {
+        if(matrixData[i]==' ') {
+          data[c++]=matrixData.substring(oldi,i).toFloat();
+          oldi=i+1;
         }
       }
+      for(i=0;i<len;i++) m[curve][i]=data[i];
+      //Write to EEPROM:
+      writeMatrix();
       Serial.println("ok");
     }
     if(r.startsWith("gc ")) {
       curve = r.substring(3,4).toInt();
-      if(curve>=3) {
+      if(curve>=N_CURVES) {
         Serial.println("e0");
         goto stop;
       }
@@ -338,13 +444,19 @@ void loop()
       }
       Serial.println("");
     }
+    if(r.startsWith("gm ")) {
+      curve = r.substring(3,4).toInt();
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      for(i=0;i<N_SENSORS;i++) {
+        Serial.print(m[curve][i], DEC); Serial.print(" ");
+      }
+      Serial.println("");
+    }
     if(r.startsWith("gs")) {
-      printFloat(tA,1); Serial.print(" "); printFloat(mDcA,1); Serial.println("");
-      printFloat(tB,1); Serial.print(" "); printFloat(mDcB,1); Serial.println("");
-      printFloat(tC,1); Serial.print(" "); printFloat(mDcC,1); Serial.println("");
-      #ifdef EN_RPM
-      Serial.print(" "); Serial.print(rpm, DEC); Serial.println("");
-      #endif
+      printSensors();
     }
     if(r.startsWith("psc")) {
       psc=true;
@@ -355,13 +467,8 @@ void loop()
   }
 
   if(psc) {
-    if(millis()>=prev+800) {
-      printFloat(tA,1); Serial.print(" "); printFloat(mDcA,1); Serial.println("");
-      printFloat(tB,1); Serial.print(" "); printFloat(mDcB,1); Serial.println("");
-      printFloat(tC,1); Serial.print(" "); printFloat(mDcC,1); Serial.println("");
-      #ifdef EN_RPM
-      Serial.print(" "); Serial.print(rpm, DEC); Serial.println("");
-      #endif
+    if(millis()>=prev+1000) {
+      printSensors();
       prev=millis();
     }
   }

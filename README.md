@@ -8,6 +8,40 @@ For example, when the system is busy, the software of the motherboard manufactur
 ## What can this piece of firmware do for me?
 This software can read three NTC thermistors of any kind. You just need to adjust the resistor values and the Steinhart-Hart coefficients to calibrate those. With this information, the controller outputs three fan speed PWM signals (25 KHz) which can be used with any PWM controllable PC fan! You can find the pin details in the code. Until I release the schematic and PCB layout, you can find tutorials on how to connect them via DuckDuckGo, Startpage or whatever you tend to use.
 
+### Mix and match temperature sensors to your liking!
+
+You can program a custom sensor to curve correlation matrix!
+
+This is the default matrix:
+```
+Curve  t0   t1   t2
+0      1    0    0
+1      0    1    0
+2      0    0    1
+```
+
+Let's say your sensor t0 is your water temperature, t1 is your ambient temperature and t2 is your inner case temperature. You can then modify this matrix to mix temperature readings to your desired curve. Let's do this with the Curve 0 for the radiator fan array speed!
+
+Assuming
+* curve 0 is your radiator fan array fan speed
+* curve 1 is your case fan array fan speed
+* curve 2 is not used
+
+Reference to set matrix: `sm <curve 1...2> <matrix value> <matrix value> <matrix value>`
+
+You enter:
+```
+sm 0 1 -1 0
+sm 1 0.25 0.25 0.5
+sm 2 0 0 0
+```
+
+* Curve 0 (radiator fans) will now receive the delta over ambient temperature. In case of sensor readings when the PC is cold, negative values due to sensor fluctuations will be clamped to 0. This is generally true for this matrix. A negative result will be handled as 0°C. This controller is NOT for sub zero cooling, which is impractical anyway.
+
+* Curve 1 (case fans) will receive a pseudo temperature of the three sensors weighted towards the inner case temperature, but also taking into account the temperature of your water and ambient. Using testing you can craft yourself a curve that suits your needs!
+
+* Curve 2 is always 0°C, cause it's not being used.
+
 ### How do I program fan curves, though?
 You can now program curves via COM interface into it.
 
@@ -23,7 +57,7 @@ Each curve is for a sensor. Curve 0 is water temperature over ambient for the ra
 
 `gc <curve>` lists the points of your curve you've programmed.
 
-You can program up to **168** curve points x and y which gives you **84** xy coordinates for temp (x) and fan speed (y) per curve!
+You can program up to **158** curve points x and y which gives you **79** xy coordinates for temp (x) and fan speed (y) per curve!
 This number resulted from the EEPROM in Arduino Nano having a whopping **512 bytes** of storage.
 
 Send `gs` and you get sensor readings and fan speeds:
