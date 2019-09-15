@@ -1,4 +1,4 @@
-//ArduPWM PC fan controller Mk II - DEC 02 2018
+//ArduPWM PC fan controller Mk III - SEP 15 2019
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
 
 #include <arduino.h>
@@ -84,41 +84,47 @@ void setup() {
   thsco[0]=0;
   thsco[1]=0;
   thsco[2]=0;
-  thscs[0][0]=0.0011431512594581995;thscs[0][1]=0.00023515745037380024;thscs[0][2]=6.187191114586837e-8;
-  thscs[1][0]=-0.1745637090e-03;thscs[1][1]=4.260403485e-04;thscs[1][2]=-5.098359524e-07;
-  thscs[2][0]=0.0028561410879575405;thscs[2][1]=-0.00005243877323181964;thscs[2][2]=0.0000012584771402890711;
+  thscs[0][0]=0.0011431512594581995;
+  thscs[0][1]=0.00023515745037380024;
+  thscs[0][2]=6.187191114586837e-8;
+  thscs[1][0]=-0.1745637090e-03;
+  thscs[1][1]=4.260403485e-04;
+  thscs[1][2]=-5.098359524e-07;
+  thscs[2][0]=0.0028561410879575405;
+  thscs[2][1]=-0.00005243877323181964;
+  thscs[2][2]=0.0000012584771402890711;
 
   //Configure channel's PWM output pins
   cpp[0]=3;
   cpp[1]=9;
   cpp[2]=10;
 
-  //Set pins up for output
-  unsigned int i;
-  for(i=0;i<N_SENSORS;i++) pinMode(cpp[i], OUTPUT);
-
-  // Configure Timer 1 for PWM @ 25 kHz.
+  // Configure Timer 1 and 2 for PWM @ 25 kHz.
   TCCR1A = 0;
   TCCR1B = 0;
   TCNT1  = 0;
-  TCCR1A = _BV(COM1A1)  // non-inverted PWM on ch. A
-      | _BV(COM1B1)  // same on ch. B
-      | _BV(WGM11);  // mode 10: ph. correct PWM, TOP = ICR1
-  TCCR1B = _BV(WGM13)   // ditto
-      | _BV(CS10);   // prescaler = 1
+  TCCR1A = _BV(COM1A1)
+         | _BV(COM1B1)
+         | _BV(WGM11);
+  TCCR1B = _BV(WGM13)
+         | _BV(CS10);
   ICR1   = 160;
-  analogWrite( 9, 0);
-  analogWrite(10, 0);
   
   TCCR2A = 0;
   TCCR2B = 0;
   TCNT2  = 0;
   TCCR2A = _BV(COM2B1)
-      | _BV(WGM20);
+         | _BV(WGM20);
   TCCR2B = _BV(WGM22)
-      | _BV(CS20);
+         | _BV(CS20);
   OCR2A  = 160;
-  OCR2B = 0;
+
+  //Set pins up for output
+  unsigned int i;
+  for(i=0;i<N_CURVES;i++){
+    pinMode(cpp[i], OUTPUT);
+    setPulseWith(cpp[i], 100);
+  }
 
   prev=0;
   Serial.begin(115200);
@@ -128,8 +134,6 @@ void setup() {
     for(i=0;i<CURVE_UB;i++)cdta[c][i]=0;cdtal[c]=0;
     for(unsigned int s=0;s<N_SENSORS;s++)m[c][s]=0;
   }
-
-  //for(i=0;i<512;i++) EEPROM.write(i,0);
 
   //Get data from the EEPROM
   if(EEPROM.read(0)>CURVE_UB-1||EEPROM.read(CURVE_UB)>CURVE_UB-1||EEPROM.read(CURVE_UB*2)>CURVE_UB-1||
@@ -266,35 +270,23 @@ void getTemperatures() {
     }
     t[s]=t[s]/50;
     if(isnan(t[s])) t[s]=0;
-    /*switch (thsp[s]) {
-      case 0: //Water sensor
-        tr[s]=(1.0/(0.0011431512594581995 + 0.00023515745037380024 * logR + 6.187191114586837e-8 * logR * logR * logR))-273.15;
-      case 3: //Ambient sensor
-        tr[s]=(1.0/(0.0028561410879575405 + -0.00005243877323181964 * logR + 0.0000012584771402890711 * logR * logR * logR))-273.15;
-      default: //Generic sensor
-        tr[s]=(1.0/(-0.1745637090e-03+4.260403485e-04*logR+(-5.098359524e-07)*logR*logR*logR))-273.15;
-        break;
-    }*/
   }
 }
 
 //Just to make the control loop more clean
 void setPulseWith(int pin, float pv) {
+  float upper_bound;
   switch (pin) {
     case 3:
-      OCR2B = round(pv/100*OCR2A);
+      upper_bound=OCR2A;
       break;
-    case 9:
-      analogWrite(9,round(pv/100*ICR1));
-      break;
-    case 10:
-      analogWrite(10,round(pv/100*ICR1));
+    default:
+      upper_bound=ICR1;
       break;
   }
+  analogWrite(pin,round(pv/100*upper_bound));
 }
 
-//Curves for calculating the duty cycle from temperature are here!
-//I did this to suit my needs, you can do changes to suit your needs!
 //This function sets the actual duty cycle you programmed.
 void setDutyCycles() {
   byte p0=0; byte p1=0;
