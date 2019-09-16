@@ -87,9 +87,12 @@ void setup() {
   thscs[0][0]=0.0011431512594581995;
   thscs[0][1]=0.00023515745037380024;
   thscs[0][2]=6.187191114586837e-8;
-  thscs[1][0]=-0.1745637090e-03;
-  thscs[1][1]=4.260403485e-04;
-  thscs[1][2]=-5.098359524e-07;
+  //thscs[1][0]=-0.1745637090e-03;
+  //thscs[1][1]=4.260403485e-04;
+  //thscs[1][2]=-5.098359524e-07;
+  thscs[1][0]=0.0028561410879575405;
+  thscs[1][1]=-0.00005243877323181964;
+  thscs[1][2]=0.0000012584771402890711;
   thscs[2][0]=0.0028561410879575405;
   thscs[2][1]=-0.00005243877323181964;
   thscs[2][2]=0.0000012584771402890711;
@@ -249,9 +252,6 @@ void writeMatrix() {
   EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
 }
 
-// printFloat prints out the float 'value' rounded to 'places' places after the decimal point
-//void printFloat(float value, int places) {int digit;float tens=0.1;int tenscount=0;int i;float tempfloat=value;if(isnan(value)){Serial.print("!NAN");return;}float d=0.5;if(value<0)d*=-1.0;for(i=0;i<places;i++)d/=10.0;tempfloat +=  d;if(value<0)tempfloat *= -1.0;while((tens*10.0)<=tempfloat){tens*=10.0;tenscount+=1;}if(value<0)Serial.print('-');if(tenscount<=1)Serial.print(0,DEC);for(i=0;i<tenscount;i++){digit=(int)(tempfloat/tens);Serial.print(digit,DEC);tempfloat=tempfloat-((float)digit*tens);tens /= 10.0;}if(places<=0)return;Serial.print('.');for(i=0;i<places;i++){tempfloat*=10.0;digit=(int)tempfloat;Serial.print(digit,DEC);tempfloat=tempfloat-(float)digit;}}
-
 void printFloat(float value, unsigned int w, unsigned int p) {
   char s[8];
   dtostrf(value, w, p, s);
@@ -287,33 +287,39 @@ void setPulseWith(int pin, float pv) {
   analogWrite(pin,round(pv/100*upper_bound));
 }
 
+float getDutyCycle(unsigned int c, float mt) {
+  bool found=false;
+  byte p0=0; byte p1=0;
+  float dc;
+  if(mt==0) return cdta[c][1];
+  for(byte i=0;i<cdtal[c];i+=2) {
+    if(cdta[c][i]>=mt) {
+      p0=i-2;
+      found=true;
+      break;
+    } 
+  }
+  if(found&&p0+2<=cdtal[c]) {
+    p1=p0+2;
+    dc=((mt-cdta[c][p0])*(cdta[c][p1+1]-cdta[c][p0+1])/(cdta[c][p1]-cdta[c][p0]))+cdta[c][p0+1];
+  } else {
+    dc=NAN;
+  }
+  return dc<0?0:dc;
+}
+
+float matrix(unsigned int c, float* temps) {
+  float mt=0;
+  for(unsigned int s=0;s<N_SENSORS;s++)mt+=temps[s]*m[c][s];
+  return (mt<0?0:mt);
+}
+
 //This function sets the actual duty cycle you programmed.
 void setDutyCycles() {
-  byte p0=0; byte p1=0;
-  bool found=false;
-
   for(unsigned int c=0;c<N_CURVES;c++) {
-    float mt=0;
-    for(unsigned int s=0;s<N_SENSORS;s++)mt+=t[s]*m[c][s];
-    mt=(mt<0?0:mt);
+    float mt=matrix(c,t);
     ct[c]=mt;
-    //Find nearest curve points and interpolate
-    if(mt==0) {
-      cdc[c]=cdta[c][1];
-    } else {
-      for(byte i=0;i<cdtal[c];i+=2) {
-        if(cdta[c][i]>=mt) {
-          p0=i-2;
-          found=true;
-          break;
-        } 
-      }
-      if(found&&p0+2<=cdtal[c]) {
-        p1=p0+2;
-        cdc[c]=((mt-cdta[c][p0])*(cdta[c][p1+1]-cdta[c][p0+1])/(cdta[c][p1]-cdta[c][p0]))+cdta[c][p0+1];
-      }
-    }
-    cdc[c]=(cdc[c]<0?0:cdc[c]);
+    cdc[c]=getDutyCycle(c,mt);
     setPulseWith(cpp[c],cdc[c]);
   }
 }
@@ -374,7 +380,7 @@ void loop()
         for(i=0;i<curveData.length();i++) {
           if(curveData[i]==' ') len++;
         }
-        if(len>=169) {
+        if(len>=CURVE_UB) {
           Serial.println("e1");
           goto stop;
         }
@@ -457,6 +463,40 @@ void loop()
       }
       if(r.startsWith("gs")) {
         printSensors(true);
+      }
+      if(r.startsWith("tc")) {
+        curve=r.substring(3,4).toInt();
+        if(curve>=N_CURVES) {
+          Serial.println("e0");
+          goto stop;
+        }
+        float tt=r.substring(5).toFloat();
+        Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
+      }
+      if(r.startsWith("tm")) {
+        curve=r.substring(3,4).toInt();
+        if(curve>=N_CURVES) {
+          Serial.println("e0");
+          goto stop;
+        }
+        String tempData = r.substring(5)+" ";
+        for(i=0;i<tempData.length();i++) {
+          if(tempData[i]==' ') len++;
+        }
+        if(len!=N_SENSORS) {
+          Serial.println("e1");
+          goto stop;
+        }
+        float data[len];
+        for(i=0;i<tempData.length();i++) {
+          if(tempData[i]==' ') {
+            data[c++]=tempData.substring(oldi,i).toFloat();
+            oldi=i+1;
+          }
+        }
+        float tt=matrix(curve,data);
+        Serial.print("m "); printFloat(tt,6,2); Serial.println("");
+        Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
       }
     }
     if(r.startsWith("psc")) {
