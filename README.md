@@ -29,18 +29,25 @@ Assuming
 
 Reference to set matrix: `sm <curve 1...2> <matrix value> <matrix value> <matrix value>`
 
+#### Example
 You enter:
 ```
 sm 0 1 -1 0
-sm 1 0.25 0.25 0.5
-sm 2 0 0 0
+sm 1 0 0 0
+sm 2 0 1 -1
 ```
-
 * Curve 0 (radiator fans) will now receive the delta over ambient temperature. In case of sensor readings when the PC is cold, negative values due to sensor fluctuations will be clamped to 0. This is generally true for this matrix. A negative result will be handled as 0°C. This controller is NOT for sub zero cooling, which is impractical anyway.
 
-* Curve 1 (case fans) will receive a pseudo temperature of the three sensors weighted towards the inner case temperature, but also taking into account the temperature of your water and ambient. Using testing you can craft yourself a curve that suits your needs!
-
 * Curve 2 is always 0°C, cause it's not being used.
+
+* Curve 2 (case fans) will receive a pseudo temperature of the three sensors weighted towards the inner case temperature, but also taking into account the temperature of your water and ambient. Using testing you can craft yourself a curve that suits your needs!
+
+#### Check programmed matrix
+`gm <channel/curve>` returns the contents of your matrix.
+
+#### Matrix error messages
+* `e0` - The curve matrix you want to store does not exist. Enter a number between 0 and 2.
+* `e1` - The matrix must consist of 3 values separated by space.
 
 ### How do I program fan curves, though?
 You can now program curves via COM interface into it.
@@ -72,15 +79,46 @@ First number is temperature, second is fan speed in percent! I will get a differ
 
 Send `psc` and it goes into a mode where it spits out the same sensor data as above every second and you can stop this mode with !psc.
 
-## Error messages
-* `e0` - The curve you want to store does not exist. Enter a number between 0 and 2.
+#### Curve error messages
+* `e0` - The curve/matrix you want to store does not exist. Enter a number between 0 and 2.
 * `e1` - Curve points are not even, you need 2 pairs of values for x and y data points.
 * `e2` - The number of curve points exceeds the maximum (84) that the EEPROM can store for each curve.
 * `e3` - Every curve must start with a 0 degree temperature fan speed.
 * `e4` - The curve data is invalid. The maximum temperature is 100°C, the maximum fan speed is 100 percent.
+
+### General error messages
 * `EEPROM BAD` - When you use a new controller and flash this firmware, there could be garbage in it's EEPROM and the data plausability check detected it. Simple default curves were loaded and you are prompted to send your custom ones.
 
+## Testing curves and matrix
+You can test the matrix and curves you just set up:
+
+### Test matrix
+`tm <curve> <sensor 0> <sensor 1> <sensor 2>`
+#### Example
+`tm 0 20 0 18`
+```
+m   2.00
+s  20.00
+```
+
+Explanation:
+* `m` - Matrix value
+* `s` - Resulting fan speed duty cycle
+
+### Test curve
+`tc <curve> <matrix value>`
+#### Example
+`tc 0 2`
+```
+s  20
+```
+Explanation:
+* `s` - Resulting fan speed duty cycle
+
 ## Future plans
+### CRC16 for the EEPROM data
+There are two free bytes that could be used for a CRC16 of the data stored in the EEPROM.
+
 ### UI for your PC
 It's planned but not yet finished.
 You can use PuTTy or other terminal programs to send and receive commands via the Arduino's COM interface. The speed is 9600 baud and the rest is default.
