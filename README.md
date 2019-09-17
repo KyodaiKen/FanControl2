@@ -115,6 +115,9 @@ s  20
 Explanation:
 * `s` - Resulting fan speed duty cycle
 
+## **IMPORTANT -- Storing data in the EEPROM**
+**If you are finished testing and setting everything up, you need to send `we` and then `<return>` to store your settings in the EEPROM. Those will be loaded automatically when the Arduino is powering back on.**
+
 ## Future plans
 ### CRC16 for the EEPROM data
 There are two free bytes that could be used for a CRC16 of the data stored in the EEPROM.
