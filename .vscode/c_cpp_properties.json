@@ -3,11 +3,14 @@
         {
             "name": "Win32",
             "includePath": [
+                "D:\\Daten\\Documents\\Arduino\\libraries\\uCRC16Lib\\src",
                 "C:\\Program Files (x86)\\Arduino\\tools\\**",
-                "C:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\**"
+                "C:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\**",
+                "C:\\Users\\blood\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.1\\**",
+                "C:\\Users\\blood\\AppData\\Local\\Arduino15\\packages\\arduino\\tools\\**"
             ],
             "forcedInclude": [
-                "C:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\cores\\arduino\\Arduino.h"
+                "C:\\Users\\blood\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.1\\cores\\arduino\\Arduino.h"
             ],
             "intelliSenseMode": "msvc-x64",
             "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Tools/MSVC/14.15.26726/bin/Hostx64/x64/cl.exe",

@@ -64,7 +64,7 @@ Each curve is for a sensor. Curve 0 is water temperature over ambient for the ra
 
 `gc <curve>` lists the points of your curve you've programmed.
 
-You can program up to **158** curve points x and y which gives you **79** xy coordinates for temp (x) and fan speed (y) per curve!
+You can program up to **32** curve points (temp (x) and fan speed (y)) per curve!
 This number resulted from the EEPROM in Arduino Nano having a whopping **512 bytes** of storage.
 
 Send `gs` and you get sensor readings and fan speeds:
@@ -82,7 +82,7 @@ Send `psc` and it goes into a mode where it spits out the same sensor data as ab
 #### Curve error messages
 * `e0` - The curve/matrix you want to store does not exist. Enter a number between 0 and 2.
 * `e1` - Curve points are not even, you need 2 pairs of values for x and y data points.
-* `e2` - The number of curve points exceeds the maximum (84) that the EEPROM can store for each curve.
+* `e2` - The number of curve points exceeds the maximum (31) that the EEPROM can store for each curve.
 * `e3` - Every curve must start with a 0 degree temperature fan speed.
 * `e4` - The curve data is invalid. The maximum temperature is 100°C, the maximum fan speed is 100 percent.
 

@@ -35,20 +35,25 @@ double ct[N_CURVES];
 float cdc[N_CURVES];
 
 //Memorized curve tables
-#define CURVE_UB 158
-byte cdta[N_CURVES][CURVE_UB];
+#define CURVE_UB 31
+#define CURVE_FIELD_LEN 5
+#define CURVE_LEN CURVE_UB*CURVE_FIELD_LEN
+#define CURVE_STRUCT_LEN (CURVE_LEN+1)
+
+struct curvePoint {
+  float temp;
+  byte  dc;
+};
+
+curvePoint cdta[N_CURVES][CURVE_UB];
 byte cdtal[N_CURVES];
 
 //Memorized mixer matrix
 #define MATRIX_LENGTH N_SENSORS*N_CURVES*4
-#define MATRIX_START CURVE_UB*N_CURVES
+#define MATRIX_START N_CURVES*CURVE_STRUCT_LEN
 float m[N_CURVES][N_SENSORS];
 
-#define EEPROM_CHECK_OFFSET 510
-#define EEPROM_CHECK_LENGTH 2
-#define EEPROM_CHECK_0 0xFC
-#define EEPROM_CHECK_1 0xCF
-
+#define EEPROM_CHECKSUM_OFFSET 505
 unsigned long prev;
 
 #ifdef CONSOLE_MODE
@@ -59,6 +64,256 @@ bool psc=false;
 #endif
 
 bool eepromok=false;
+
+float unpackFloat(const unsigned char *buff) {
+  union {
+    float f;
+    unsigned char b[4];
+  } u;
+  u.b[3] = buff[3];
+  u.b[2] = buff[2];
+  u.b[1] = buff[1];
+  u.b[0] = buff[0];
+  return u.f;
+}
+
+int packFloat(void *buf, float x) {
+    unsigned char *b = (unsigned char *)buf;
+    unsigned char *p = (unsigned char *) &x;
+    b[0] = p[0];
+    b[1] = p[1];
+    b[2] = p[2];
+    b[3] = p[3];
+    return 4;
+}
+
+curvePoint readCurvePoint(unsigned int eeindex) {
+  unsigned char buff[5];
+  for(unsigned int i=0;i<5;i++){
+    buff[i]=EEPROM.read(eeindex+i);
+    #ifdef DEBUG
+    Serial.print(buff[i], HEX); Serial.print(" ");
+    #endif
+  }
+  curvePoint cp;
+  cp.temp=unpackFloat(buff);
+  cp.dc=buff[4];
+  return cp;
+}
+
+void writeCurvePoint(unsigned int eeindex, curvePoint cp) {
+  unsigned char buff[5];
+  packFloat(buff, cp.temp);
+  buff[4]=cp.dc;
+  for(unsigned int i=0;i<5;i++){
+    #ifdef DEBUG
+    Serial.print(buff[i], HEX); Serial.print(" ");
+    #endif
+    EEPROM.write(eeindex+i,buff[i]);
+  }
+}
+
+void readCurves() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    cdtal[c]=EEPROM.read(CURVE_STRUCT_LEN*c);
+    unsigned int ci=0;
+    if(cdtal[c]>0) {
+      for(unsigned int i=0;i<cdtal[c]*CURVE_FIELD_LEN;i+=CURVE_FIELD_LEN) {
+        cdta[c][ci]=readCurvePoint(CURVE_STRUCT_LEN*c+i+1);
+        if(cdta[c][ci].temp>100||cdta[c][ci].dc>100) goto EEPROM_BAD;
+        #ifdef DEBUG
+        Serial.print("CURVES: EEPROM.read() "); Serial.print(CURVE_STRUCT_LEN*c+i+1, DEC); Serial.print(" to "); Serial.print(CURVE_STRUCT_LEN*c+i+1+CURVE_FIELD_LEN, DEC); Serial.println("");
+        #endif
+        ci++;
+      }
+    }
+  }
+  goto EEPROM_OK;
+  EEPROM_BAD:;
+  eepromok=false;
+  goto EEND;
+  EEPROM_OK:;
+  eepromok=true;
+  EEND:;
+}
+
+void readMatrix() {
+  if(eepromok) { 
+    for(unsigned int c=0;c<N_CURVES;c++) {
+      for(unsigned int s=0;s<N_SENSORS;s++) {
+        byte buff[4];
+        for(unsigned int i=0;i<sizeof(buff);i++)buff[i]=EEPROM.read(MATRIX_START+c*N_CURVES*4+s*4+i);
+        #ifdef DEBUG
+        Serial.print("MATRIX: EEPROM.read() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4*N_SENSORS, DEC);
+        #endif
+        m[c][s]=unpackFloat(buff);
+      }
+    }
+  }
+}
+
+void writeCurves() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    if(cdtal[c]>0) {
+      EEPROM.write(CURVE_STRUCT_LEN*c, cdtal[c]);
+      #ifdef DEBUG
+      Serial.print("CURVES: EEPROM.write() len "); Serial.print(cdtal[c], DEC); Serial.print(" at "); Serial.print(CURVE_STRUCT_LEN*c, DEC);
+      #endif
+      unsigned int i=0;
+      for(unsigned int ci=0;ci<cdtal[c];ci++) {
+        writeCurvePoint(CURVE_STRUCT_LEN*c+i+1,cdta[c][ci]);
+        #ifdef DEBUG
+        Serial.print("cp "); Serial.print(CURVE_STRUCT_LEN*c+i+1, DEC); Serial.print(" to "); Serial.print(CURVE_STRUCT_LEN*c+i+1+CURVE_FIELD_LEN, DEC); Serial.println("");
+        #endif
+        i+=CURVE_FIELD_LEN;
+      }
+    }
+  }
+}
+
+void writeMatrix() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    for(unsigned int s=0;s<N_SENSORS;s++) {
+      byte buff[4]; float f=m[c][s];
+      packFloat(buff, f);
+      for(unsigned int i=0;i<sizeof(buff);i++){EEPROM.write(MATRIX_START+c*N_CURVES*4+s*4+i, buff[i]);}
+      #ifdef DEBUG
+      Serial.print("MATRIX: EEPROM.write() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4*N_SENSORS, DEC);
+      #endif
+    }
+  }
+}
+
+
+uint32_t CRC32(byte* data, uint32_t ignore_offset) {
+  const uint32_t crc_table[16] = {
+    0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
+    0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
+    0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
+    0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c
+  };
+
+  uint32_t crc = ~0L;
+  for (uint32_t i=0;i<sizeof(data);++i) {
+    byte val=0;
+    if(i>ignore_offset&&i<ignore_offset+4) {
+      val=0;
+    } else {
+      val=data[i];
+    }
+    crc=crc_table[(crc^val)&0x0f]^(crc>>4);
+    crc=crc_table[(crc^(val>>4))&0x0f]^(crc>>4);
+    crc=~crc;
+  }
+  return crc;
+}
+
+void writeEEPROM_CRC() {
+  byte e[512]; for(uint16_t i=0;i<512;i++)e[i]=EEPROM[i];
+  EEPROM.put(EEPROM_CHECKSUM_OFFSET, CRC32(e, EEPROM_CHECKSUM_OFFSET));
+}
+
+bool checkEEPROM_CRC() {
+  uint32_t crc=0;
+  EEPROM.get(EEPROM_CHECKSUM_OFFSET,crc);
+  byte e[512]; for(uint16_t i=0;i<512;i++)e[i]=EEPROM[i];
+  bool ok=(CRC32(e, EEPROM_CHECKSUM_OFFSET)==crc);
+  return ok;
+}
+
+void printFloat(double value, unsigned int w, unsigned int p) {
+  char s[8];
+  dtostrf(value, w, p, s);
+  Serial.print(s);
+}
+
+////Little helpers to keep it clean and simple////
+//Function for reading the temperatures at a all analog pins
+void getTemperatures() {
+  for(unsigned int s=0;s<N_SENSORS;s++) {
+    t[s]=0;
+    //Multiprobe for smoother values
+    for(byte i=0;i<100;i++) {
+      double logR=log(thsRpd[s]*(1023.0/(double)analogRead(thsp[s])-1.0));
+      t[s]+=(1.0/(thscs[s][0]+thscs[s][1]*logR+thscs[s][2]*logR*logR*logR))-273.15-thsco[s];
+    }
+    t[s]=t[s]/100;
+    if(isnan(t[s])) t[s]=0;
+  }
+}
+
+//Just to make the control loop more clean
+void setPulseWith(int pin, float pv) {
+  float upper_bound;
+  switch (pin) {
+    case 3:
+      upper_bound=OCR2A;
+      break;
+    default:
+      upper_bound=ICR1;
+      break;
+  }
+  analogWrite(pin,round(pv/100*upper_bound));
+}
+
+float getDutyCycle(unsigned int c, float mt) {
+  bool found=false;
+  byte p0=0; byte p1=0;
+  float dc;
+  if(mt==0) return cdta[c][0].dc;
+  for(byte i=0;i<cdtal[c];i++) {
+    if(cdta[c][i].temp>=mt) {
+      p0=i-1;
+      found=true;
+      break;
+    } 
+  }
+  if(found&&p0+1<=cdtal[c]) {
+    p1=p0+1;
+    dc=((mt-cdta[c][p0].temp)*(cdta[c][p1].dc-cdta[c][p0].dc)/(cdta[c][p1].temp-cdta[c][p0].temp))+cdta[c][p0].dc;
+  } else {
+    dc=NAN;
+  }
+  return dc<0?0:dc;
+}
+
+double matrix(unsigned int c, double* temps) {
+  double mt=0;
+  for(unsigned int s=0;s<N_SENSORS;s++)mt+=temps[s]*m[c][s];
+  return (mt<0?0:mt);
+}
+
+//This function sets the actual duty cycle you programmed.
+void setDutyCycles() {
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    double mt=matrix(c,t);
+    ct[c]=mt;
+    cdc[c]=getDutyCycle(c,mt);
+    setPulseWith(cpp[c],cdc[c]);
+  }
+}
+
+//Print sensors
+void printSensors(bool ondemand) {
+  if(!ondemand)Serial.println("");
+  Serial.print("t ");
+  for(unsigned int s=0;s<N_SENSORS;s++) {
+    printFloat(t[s],6,2);
+    if(s<N_SENSORS-1)Serial.print(" ");
+  }
+  Serial.println("");
+  Serial.print("m ");
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    printFloat(ct[c],6,2);
+    if(c<N_SENSORS-1)Serial.print(" ");
+  }
+  Serial.println("");
+  Serial.print("s ");
+  for(unsigned int c=0;c<N_CURVES;c++) {
+    printFloat(cdc[c],6,2);
+    if(c<N_SENSORS-1)Serial.print(" ");
+  }
+}
 
 ////Setup////
 void setup() {
@@ -134,14 +389,18 @@ void setup() {
 
   //Zero curve and matrix memory
   for(unsigned int c=0;c<N_CURVES;c++){
-    for(i=0;i<CURVE_UB;i++)cdta[c][i]=0;cdtal[c]=0;
+    for(i=0;i<CURVE_UB;i++){
+      cdta[c][i].temp=0;
+      cdta[c][i].dc=0;
+      cdtal[c]=0;
+    }
     for(unsigned int s=0;s<N_SENSORS;s++)m[c][s]=0;
   }
 
   //Get data from the EEPROM
-  if(EEPROM.read(0)>CURVE_UB-1||EEPROM.read(CURVE_UB)>CURVE_UB-1||EEPROM.read(CURVE_UB*2)>CURVE_UB-1||
-     EEPROM.read(0)==0||EEPROM.read(CURVE_UB)==0||EEPROM.read(CURVE_UB*2)==0||
-     (EEPROM.read(EEPROM_CHECK_OFFSET)!=0xFC&&EEPROM.read(EEPROM_CHECK_OFFSET+1)!=0xCF)) goto EEPROM_BAD;
+  if(EEPROM.read(0)>CURVE_UB||EEPROM.read(CURVE_STRUCT_LEN)>CURVE_UB||EEPROM.read(CURVE_STRUCT_LEN*2)>CURVE_UB||
+     EEPROM.read(0)==0||EEPROM.read(CURVE_STRUCT_LEN)==0||EEPROM.read(CURVE_STRUCT_LEN*2)==0) goto EEPROM_BAD;
+  if(!checkEEPROM_CRC()) goto EEPROM_BAD;
   readCurves();
   readMatrix();
   if(!eepromok) goto EEPROM_BAD;
@@ -149,10 +408,10 @@ void setup() {
 
   EEPROM_BAD:;
   //Set up default curves just ot get things going
-  cdtal[0]=4; cdtal[1]=4; cdtal[2]=4;
-  cdta[0][0]=0; cdta[0][1]=0; cdta[0][2]=0; cdta[0][3]=100;
-  cdta[0][0]=0; cdta[1][1]=0; cdta[1][2]=0; cdta[1][3]=100;
-  cdta[0][0]=0; cdta[2][1]=0; cdta[2][2]=0; cdta[2][3]=100;
+  cdtal[0]=2; cdtal[1]=2; cdtal[2]=2;
+  cdta[0][0].temp=0; cdta[0][0].dc=0; cdta[0][1].temp=0; cdta[0][1].dc=100;
+  cdta[1][0].temp=0; cdta[1][0].dc=0; cdta[1][1].temp=0; cdta[1][1].dc=100;
+  cdta[2][0].temp=0; cdta[2][0].dc=0; cdta[2][1].temp=0; cdta[2][1].dc=100;
   m[0][0]=1;m[0][1]=0;m[0][2]=0;
   m[1][0]=0;m[1][1]=1;m[1][0]=0;
   m[2][0]=0;m[2][1]=0;m[2][0]=1;
@@ -161,189 +420,9 @@ void setup() {
   //Write to EEPROM:
   writeCurves();
   writeMatrix();
-  EEPROM.write(EEPROM_CHECK_OFFSET,0xFC);
-  EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
   Serial.println("EEPROM BAD, default curves loaded and flashed. Please set up new curves if desired!");
 
   EEPROM_OK:;
-}
-
-float unpackFloat(const unsigned char *buff) {
-  union {
-    float f;
-    unsigned char b[4];
-  } u;
-  u.b[3] = buff[3];
-  u.b[2] = buff[2];
-  u.b[1] = buff[1];
-  u.b[0] = buff[0];
-  return u.f;
-}
-
-int packFloat(void *buf, float x) {
-    unsigned char *b = (unsigned char *)buf;
-    unsigned char *p = (unsigned char *) &x;
-    b[0] = p[0];
-    b[1] = p[1];
-    b[2] = p[2];
-    b[3] = p[3];
-    return 4;
-}
-
-void readCurves() {
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    cdtal[c]=EEPROM.read(CURVE_UB*c);
-    if(cdtal[c]>0) {
-      for(unsigned int i=1;i<=cdtal[c];i++) {
-        cdta[c][i-1]=EEPROM.read(CURVE_UB*c+i);
-        if((cdta[c][i-1]>100&&((i-1)%2)==0)||(cdta[c][i-1]>100&&((i-1)%2)==1)) goto EEPROM_BAD;
-      }
-      #ifdef DEBUG
-      Serial.print("EEPROM.read() "); Serial.print(CURVE_UB*c, DEC); Serial.print(" to "); Serial.print(CURVE_UB*c+1+cdtal[c], DEC); Serial.print(", length "); Serial.println(cdtal[c], DEC);
-      #endif
-    }
-  }
-  goto EEPROM_OK;
-  EEPROM_BAD:;
-  eepromok=false;
-  EEPROM_OK:;
-  eepromok=true;
-}
-
-void readMatrix() {
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    for(unsigned int s=0;s<N_SENSORS;s++) {
-      byte buff[4];
-      for(unsigned int i=0;i<sizeof(buff);i++)buff[i]=EEPROM.read(MATRIX_START+c*N_CURVES*4+s*4+i);
-      #ifdef DEBUG
-      Serial.print("EEPROM.read() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4, DEC);
-      #endif
-      m[c][s]=unpackFloat(buff);
-    }
-  }
-}
-
-void writeCurves() {
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    if(cdtal[c]>0) {
-      EEPROM.write(CURVE_UB*c, cdtal[c]);
-      for(unsigned int i=1;i<=cdtal[c];i++) EEPROM.write(CURVE_UB*c+i, cdta[c][i-1]);
-      #ifdef DEBUG
-      Serial.print("EEPROM.read() "); Serial.print(CURVE_UB*c, DEC); Serial.print(" to "); Serial.print(CURVE_UB*c+1+cdtal[c], DEC); Serial.print(", length "); Serial.println(cdtal[c], DEC);
-      #endif
-    }
-  }
-  EEPROM.write(EEPROM_CHECK_OFFSET,0xFC);
-  EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
-}
-
-void writeMatrix() {
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    for(unsigned int s=0;s<N_SENSORS;s++) {
-      byte buff[4]; float f=m[c][s];
-      packFloat(buff, f);
-      for(unsigned int i=0;i<sizeof(buff);i++){EEPROM.write(MATRIX_START+c*N_CURVES*4+s*4+i, buff[i]);}
-      #ifdef DEBUG
-      Serial.print(" - EEPROM.write() "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4, DEC); Serial.print(" to "); Serial.print(MATRIX_START+c*N_CURVES*4+s*4+3, DEC); Serial.print(", length "); Serial.println(4, DEC);
-      #endif
-    }
-  }
-  EEPROM.write(EEPROM_CHECK_OFFSET,0xFC);
-  EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
-}
-
-void printFloat(double value, unsigned int w, unsigned int p) {
-  char s[8];
-  dtostrf(value, w, p, s);
-  Serial.print(s);
-}
-
-////Little helpers to keep it clean and simple////
-//Function for reading the temperatures at a all analog pins
-void getTemperatures() {
-  for(unsigned int s=0;s<N_SENSORS;s++) {
-    t[s]=0;
-    //Multiprobe for smoother values
-    for(byte i=0;i<100;i++) {
-      double logR=log(thsRpd[s]*(1023.0/(double)analogRead(thsp[s])-1.0));
-      t[s]+=(1.0/(thscs[s][0]+thscs[s][1]*logR+thscs[s][2]*logR*logR*logR))-273.15-thsco[s];
-    }
-    t[s]=t[s]/100;
-    if(isnan(t[s])) t[s]=0;
-  }
-}
-
-//Just to make the control loop more clean
-void setPulseWith(int pin, float pv) {
-  float upper_bound;
-  switch (pin) {
-    case 3:
-      upper_bound=OCR2A;
-      break;
-    default:
-      upper_bound=ICR1;
-      break;
-  }
-  analogWrite(pin,round(pv/100*upper_bound));
-}
-
-float getDutyCycle(unsigned int c, float mt) {
-  bool found=false;
-  byte p0=0; byte p1=0;
-  float dc;
-  if(mt==0) return cdta[c][1];
-  for(byte i=0;i<cdtal[c];i+=2) {
-    if(cdta[c][i]>=mt) {
-      p0=i-2;
-      found=true;
-      break;
-    } 
-  }
-  if(found&&p0+2<=cdtal[c]) {
-    p1=p0+2;
-    dc=((mt-cdta[c][p0])*(cdta[c][p1+1]-cdta[c][p0+1])/(cdta[c][p1]-cdta[c][p0]))+cdta[c][p0+1];
-  } else {
-    dc=NAN;
-  }
-  return dc<0?0:dc;
-}
-
-double matrix(unsigned int c, double* temps) {
-  double mt=0;
-  for(unsigned int s=0;s<N_SENSORS;s++)mt+=temps[s]*m[c][s];
-  return (mt<0?0:mt);
-}
-
-//This function sets the actual duty cycle you programmed.
-void setDutyCycles() {
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    double mt=matrix(c,t);
-    ct[c]=mt;
-    cdc[c]=getDutyCycle(c,mt);
-    setPulseWith(cpp[c],cdc[c]);
-  }
-}
-
-//Print sensors
-void printSensors(bool ondemand) {
-  if(!ondemand)Serial.println("");
-  Serial.print("t ");
-  for(unsigned int s=0;s<N_SENSORS;s++) {
-    printFloat(t[s],6,2);
-    if(s<N_SENSORS-1)Serial.print(" ");
-  }
-  Serial.println("");
-  Serial.print("m ");
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    printFloat(ct[c],6,2);
-    if(c<N_SENSORS-1)Serial.print(" ");
-  }
-  Serial.println("");
-  Serial.print("s ");
-  for(unsigned int c=0;c<N_CURVES;c++) {
-    printFloat(cdc[c],6,2);
-    if(c<N_SENSORS-1)Serial.print(" ");
-  }
 }
 
 ////Main control loop////
@@ -388,10 +467,10 @@ void loop()
           Serial.println("e2");
           goto stop;
         }
-        byte data[len];
+        float data[len];
         for(i=0;i<curveData.length();i++) {
           if(curveData[i]==' ') {
-            data[c++]=curveData.substring(oldi,i).toInt();
+            data[c++]=curveData.substring(oldi,i).toFloat();
             oldi=i+1;
           }
         }
@@ -400,15 +479,17 @@ void loop()
           goto stop;
         }
         //Write curve into memory
-        for(i=0;i<len;i++) {
-          cdta[curve][i]=data[i];
-          if((i%2==0&&data[i]>100)||(i%2==1&&data[i]>100)) {
-          Serial.println("e4");
-          goto stop;
+        unsigned int ci=0;
+        for(i=0;i<len;i+=2) {
+          if(data[i]>100||data[i+1]>100) {
+            Serial.println("e4");
+            goto stop;
           }
+          cdta[curve][ci].temp=data[i];
+          cdta[curve][ci].dc=(byte)data[i+1];
+          ci++;
         }
-        cdtal[curve]=len;
-        writeCurves();
+        cdtal[curve]=ci;
         Serial.println("ok");
       }
       if(r.startsWith("sm ")) {
@@ -435,8 +516,6 @@ void loop()
           }
         }
         for(i=0;i<len;i++) m[curve][i]=data[i];
-        //Write to EEPROM:
-        writeMatrix();
         Serial.println("ok");
       }
       if(r.startsWith("gc ")) {
@@ -446,7 +525,7 @@ void loop()
           goto stop;
         }
         for(i=0;i<cdtal[curve];i++) {
-          Serial.print(cdta[curve][i], DEC); Serial.print(" ");
+          Serial.print(cdta[curve][i].temp); Serial.print(" "); Serial.print(cdta[curve][i].dc); Serial.print(" ");
         }
         Serial.println("");
       }
@@ -497,6 +576,12 @@ void loop()
         double tt=matrix(curve,data);
         Serial.print("m "); printFloat(tt,6,2); Serial.println("");
         Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
+      }
+      if(r.startsWith("we")) {
+        writeMatrix();
+        writeCurves();
+        writeEEPROM_CRC();
+        Serial.println("ok");
       }
     }
     if(r.startsWith("psc")) {
