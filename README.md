@@ -119,9 +119,6 @@ Explanation:
 **If you are finished testing and setting everything up, you need to send `we` and then `<return>` to store your settings in the EEPROM. Those will be loaded automatically when the Arduino is powering back on.**
 
 ## Future plans
-### CRC16 for the EEPROM data
-There are two free bytes that could be used for a CRC16 of the data stored in the EEPROM.
-
 ### UI for your PC
 It's planned but not yet finished.
 You can use PuTTy or other terminal programs to send and receive commands via the Arduino's COM interface. The speed is 9600 baud and the rest is default.
