@@ -15,10 +15,10 @@
 int thsp[N_SENSORS];
 
 //Thermistor calibration (°K/C)
-float thsco[N_SENSORS];
+double thsco[N_SENSORS];
 
 //Thermistor Steinhart-Hart coefficients
-float thscs[N_SENSORS][3];
+double thscs[N_SENSORS][3];
 
 //Thermistor pulldown resistor value in Ohms - Can also be used for thermistor calibration
 float thsRpd[N_SENSORS];
@@ -28,8 +28,8 @@ float thsRpd[N_SENSORS];
 int cpp[N_CURVES];
 
 //Memorized temperatures
-float t[N_SENSORS];
-float ct[N_CURVES];
+double t[N_SENSORS];
+double ct[N_CURVES];
 
 //Memorized duty cycles for info output
 float cdc[N_CURVES];
@@ -252,7 +252,7 @@ void writeMatrix() {
   EEPROM.write(EEPROM_CHECK_OFFSET+1,0xCF);
 }
 
-void printFloat(float value, unsigned int w, unsigned int p) {
+void printFloat(double value, unsigned int w, unsigned int p) {
   char s[8];
   dtostrf(value, w, p, s);
   Serial.print(s);
@@ -264,11 +264,11 @@ void getTemperatures() {
   for(unsigned int s=0;s<N_SENSORS;s++) {
     t[s]=0;
     //Multiprobe for smoother values
-    for(byte i=0;i<50;i++) {
-      float logR=log(thsRpd[s]*(1023.0/(float)analogRead(thsp[s])-1.0));
+    for(byte i=0;i<100;i++) {
+      double logR=log(thsRpd[s]*(1023.0/(double)analogRead(thsp[s])-1.0));
       t[s]+=(1.0/(thscs[s][0]+thscs[s][1]*logR+thscs[s][2]*logR*logR*logR))-273.15-thsco[s];
     }
-    t[s]=t[s]/50;
+    t[s]=t[s]/100;
     if(isnan(t[s])) t[s]=0;
   }
 }
@@ -308,8 +308,8 @@ float getDutyCycle(unsigned int c, float mt) {
   return dc<0?0:dc;
 }
 
-float matrix(unsigned int c, float* temps) {
-  float mt=0;
+double matrix(unsigned int c, double* temps) {
+  double mt=0;
   for(unsigned int s=0;s<N_SENSORS;s++)mt+=temps[s]*m[c][s];
   return (mt<0?0:mt);
 }
@@ -317,7 +317,7 @@ float matrix(unsigned int c, float* temps) {
 //This function sets the actual duty cycle you programmed.
 void setDutyCycles() {
   for(unsigned int c=0;c<N_CURVES;c++) {
-    float mt=matrix(c,t);
+    double mt=matrix(c,t);
     ct[c]=mt;
     cdc[c]=getDutyCycle(c,mt);
     setPulseWith(cpp[c],cdc[c]);
@@ -427,7 +427,7 @@ void loop()
           goto stop;
         }
         //Write matrix into memory
-        float data[len];
+        double data[len];
         for(i=0;i<matrixData.length();i++) {
           if(matrixData[i]==' ') {
             data[c++]=matrixData.substring(oldi,i).toFloat();
@@ -487,14 +487,14 @@ void loop()
           Serial.println("e1");
           goto stop;
         }
-        float data[len];
+        double data[len];
         for(i=0;i<tempData.length();i++) {
           if(tempData[i]==' ') {
             data[c++]=tempData.substring(oldi,i).toFloat();
             oldi=i+1;
           }
         }
-        float tt=matrix(curve,data);
+        double tt=matrix(curve,data);
         Serial.print("m "); printFloat(tt,6,2); Serial.println("");
         Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
       }
