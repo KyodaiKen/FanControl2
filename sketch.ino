@@ -1,6 +1,5 @@
 //ArduPWM PC fan controller Mk III - SEP 15 2019
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
-
 #include <arduino.h>
 #include <stdlib.h>
 #include <EEPROM.h>
@@ -315,6 +314,82 @@ void printSensors(bool ondemand) {
   }
 }
 
+//Parse entered curve data from Serial
+char parseCurveData(byte c) {
+  byte wlen=0;
+  byte wcount=0;
+  byte pcount=0;
+  char w[16]; for(byte x=0;x<16;x++)w[x]='\x0';
+  //Clear curve data
+  for(byte i=0;i<CURVE_UB;i++) {
+    cdta[c][i].temp=0;
+    cdta[c][i].dc=0;
+  }
+  cdtal[c]=0;
+  //Read from serial and parse right away to save memory
+  while(Serial.available()) {
+    char current=Serial.read();
+    if((current==' '||current=='\n')&&wlen>0) {
+      if(pcount+1>CURVE_UB*2)return '2';
+      if(wcount%2==0) {
+        cdta[c][pcount].temp=atof(w);
+        Serial.println(cdta[c][pcount].temp, DEC);
+        if(cdta[c][pcount].temp>100)return '4';
+        if(pcount==0&&cdta[c][pcount].temp!=0)return '3';
+      } else {
+        cdta[c][pcount].dc=atoi(w);
+        Serial.println(cdta[c][pcount].dc, DEC);
+        if(cdta[c][pcount].dc>100)return '4';
+        pcount++;
+      }
+      for(byte x=0;x<wlen;x++)w[x]='\x0';
+      wlen=0;
+      wcount++;
+      if(current=='\n') break;
+    } else {
+      w[wlen++]=current;
+    }
+  }
+  if(pcount%2==0)return '1';
+  cdtal[c]=pcount;
+  return 0;
+}
+
+//Parse float string separated by spaces directly from serial
+unsigned char parseFloatChain(float* o) {
+  byte wlen=0;
+  byte wcount=0;
+  char w[16]; for(byte x=0;x<16;x++)w[x]='\x0';
+  //Read from serial and parse right away to save memory
+  while(Serial.available()) {
+    char current=Serial.read();
+    Serial.println(current);
+    if((current==' '||current=='\n')&&wlen>0) {
+      o[wcount]=atof(w);
+      Serial.println(o[wcount], DEC);
+      for(byte x=0;x<wlen;x++)w[x]='\x0';
+      wlen=0;
+      wcount++;
+      if(current=='\n') break;
+    } else {
+      w[wlen++]=current;
+    }
+  }
+  return wcount;
+}
+
+//Parse matrix data
+char parseMatrixData(byte c) {
+  float md[N_SENSORS];
+  unsigned char ml=parseFloatChain(md);
+  if(ml!=N_SENSORS)return '2';
+  for(byte i=0;i<ml;i++) {
+    if(md[i]>100)return '4';
+    m[c][i]=md[i];
+  }
+  return 0;
+}
+
 ////Setup////
 void setup() {
   /* Pins:
@@ -423,173 +498,167 @@ void setup() {
   Serial.println("EEPROM BAD, default curves loaded and flashed. Please set up new curves if desired!");
 
   EEPROM_OK:;
+
+  //Welcome message for hardware monitors to identify
+  Serial.println("KyoudaiKen FC02");
 }
 
 ////Main control loop////
 void loop()
 {
   unsigned int i;
-  unsigned int oldi=0;
-  unsigned int c=0;
-  unsigned int len=0;
+  char cmd[3];
+  char tmp[1];
   byte curve;
 
   getTemperatures();
   setDutyCycles();
 
+  cmd[0]=0;cmd[1]=0;cmd[2]=0;
   //Watch for serial commands
-  String r = "";
   if(Serial.available()){
-    delay(100);
-    while (Serial.available()) {
-      char c = Serial.read();
-      if(c=='\n') break;
-      r+=c;
+    delay(200);
+    i=0;
+    while (Serial.available()&&i<3) {
+      cmd[i++]=Serial.read();
+      if(cmd[i-1]=='\n') break;
     }
   }
-  if(psc==false) {
-    if(r!="") {
-      if(r.startsWith("sc ")) {
-        curve = r.substring(3,4).toInt();
-        if(curve>=N_CURVES) {
-          Serial.println("e0");
-          goto stop;
-        }
-        String curveData = r.substring(5)+" ";
-        for(i=0;i<curveData.length();i++) {
-          if(curveData[i]==' ') len++;
-        }
-        if(len>=CURVE_UB) {
-          Serial.println("e1");
-          goto stop;
-        }
-        if(len%2>0) {
-          Serial.println("e2");
-          goto stop;
-        }
-        float data[len];
-        for(i=0;i<curveData.length();i++) {
-          if(curveData[i]==' ') {
-            data[c++]=curveData.substring(oldi,i).toFloat();
-            oldi=i+1;
-          }
-        }
-        if(data[0]!=0) {
-          Serial.println("e3");
-          goto stop;
-        }
-        //Write curve into memory
-        unsigned int ci=0;
-        for(i=0;i<len;i+=2) {
-          if(data[i]>100||data[i+1]>100) {
-            Serial.println("e4");
-            goto stop;
-          }
-          cdta[curve][ci].temp=data[i];
-          cdta[curve][ci].dc=(byte)data[i+1];
-          ci++;
-        }
-        cdtal[curve]=ci;
+  //When not in continous sensor printing mode
+  if(!psc) {
+    //Set curve
+    if(cmd[0]=='s'&&cmd[1]=='c'&&cmd[2]==' '&&Serial.available()) {
+      tmp[0]=Serial.read();
+      curve=atoi(tmp);
+      //Check curve parameter validity
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      if(Serial.read()!=' ') {
+        Serial.println("e1");
+        goto stop;
+      }
+      //Parse curve data from serial data
+      char r=parseCurveData(curve);
+      if(r!=0) {
+        Serial.print("e");Serial.println(r);
+        readCurves();
+      } else {
         Serial.println("ok");
       }
-      if(r.startsWith("sm ")) {
-        curve=r.substring(3,4).toInt();
-        if(curve>=N_CURVES) {
-          Serial.println("e0");
-          goto stop;
-        }
-        String matrixData = r.substring(5)+" ";
-        len=0;
-        for(i=0;i<matrixData.length();i++) {
-          if(matrixData[i]==' ') len++;
-        }
-        if(len!=N_SENSORS) {
-          Serial.println("e1");
-          goto stop;
-        }
-        //Write matrix into memory
-        double data[len];
-        for(i=0;i<matrixData.length();i++) {
-          if(matrixData[i]==' ') {
-            data[c++]=matrixData.substring(oldi,i).toFloat();
-            oldi=i+1;
-          }
-        }
-        for(i=0;i<len;i++) m[curve][i]=data[i];
-        Serial.println("ok");
-      }
-      if(r.startsWith("gc ")) {
-        curve = r.substring(3,4).toInt();
-        if(curve>=N_CURVES) {
-          Serial.println("e0");
-          goto stop;
-        }
-        for(i=0;i<cdtal[curve];i++) {
-          Serial.print(cdta[curve][i].temp); Serial.print(" "); Serial.print(cdta[curve][i].dc); Serial.print(" ");
-        }
-        Serial.println("");
-      }
-      if(r.startsWith("gm ")) {
-        curve = r.substring(3,4).toInt();
-        if(curve>=N_CURVES) {
-          Serial.println("e0");
-          goto stop;
-        }
-        for(i=0;i<N_SENSORS;i++) {
-          Serial.print(m[curve][i], DEC); Serial.print(" ");
-        }
-        Serial.println("");
-      }
-      if(r.startsWith("gs")) {
-        printSensors(true);
-      }
-      if(r.startsWith("tc")) {
-        curve=r.substring(3,4).toInt();
-        if(curve>=N_CURVES) {
-          Serial.println("e0");
-          goto stop;
-        }
-        float tt=r.substring(5).toFloat();
-        Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
-      }
-      if(r.startsWith("tm")) {
-        curve=r.substring(3,4).toInt();
-        if(curve>=N_CURVES) {
-          Serial.println("e0");
-          goto stop;
-        }
-        String tempData = r.substring(5)+" ";
-        for(i=0;i<tempData.length();i++) {
-          if(tempData[i]==' ') len++;
-        }
-        if(len!=N_SENSORS) {
-          Serial.println("e1");
-          goto stop;
-        }
-        double data[len];
-        for(i=0;i<tempData.length();i++) {
-          if(tempData[i]==' ') {
-            data[c++]=tempData.substring(oldi,i).toFloat();
-            oldi=i+1;
-          }
-        }
-        double tt=matrix(curve,data);
-        Serial.print("m "); printFloat(tt,6,2); Serial.println("");
-        Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
-      }
-      if(r.startsWith("we")) {
-        writeMatrix();
-        writeCurves();
-        writeEEPROM_CRC();
-        Serial.println("ok");
-      }
+      goto stop;
     }
-    if(r.startsWith("psc")) {
+
+    //Set matrix
+    if(cmd[0]=='s'&&cmd[1]=='m'&&cmd[2]==' '&&Serial.available()) {
+      tmp[0]=Serial.read();
+      curve=atoi(tmp);
+      //Check curve parameter validity
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      if(Serial.read()!=' ') {
+        Serial.println("e1");
+        goto stop;
+      }
+      char r=parseMatrixData(curve);
+      if(r!=0) {
+        Serial.print("e");Serial.println(r);
+        readMatrix();
+      } else {
+        Serial.println("ok");
+      }
+      goto stop;
+    }
+
+    //Test matrix
+    if(cmd[0]=='t'&&cmd[1]=='m'&&cmd[2]==' '&&Serial.available()) {
+      tmp[0]=Serial.read();
+      curve=atoi(tmp);
+      //Check curve parameter validity
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      if(Serial.read()!=' ') {
+        Serial.println("e1");
+        goto stop;
+      }
+      float sd[N_SENSORS];
+      unsigned char sl=parseFloatChain(sd);
+      if(sl!=N_CURVES) {
+        Serial.println("e2");
+        goto stop;
+      }
+      double data[sl];
+      for(byte i=0;i<sl;i++)data[i]=sd[i];
+      double tt=matrix(curve,data);
+      Serial.print("m "); printFloat(tt,6,2); Serial.println("");
+      Serial.print("s "); printFloat(getDutyCycle(curve,tt),6,2); Serial.println("");
+      goto stop;
+    }
+
+    //Write to EEPROM
+    if(cmd[0]=='w'&&cmd[1]=='e') {
+      writeMatrix();
+      writeCurves();
+      writeEEPROM_CRC();
+      Serial.println("ok");
+      goto stop;
+    }
+
+    //Get curve
+    if(cmd[0]=='g'&&cmd[1]=='c'&&cmd[2]==' '&&Serial.available()) {
+      tmp[0]=Serial.read();
+      curve=atoi(tmp);
+      //Check curve parameter validity
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      //Print curve data
+      for(i=0;i<cdtal[curve];i++) {
+        Serial.print(cdta[curve][i].temp); Serial.print(" "); Serial.print(cdta[curve][i].dc); Serial.print(" ");
+      }
+      Serial.println("");
+      goto stop;
+    }
+
+    //Get matrix
+    if(cmd[0]=='g'&&cmd[1]=='m'&&cmd[2]==' '&&Serial.available()) {
+      tmp[0]=Serial.read();
+      curve=atoi(tmp);
+      //Check curve parameter validity
+      if(curve>=N_CURVES) {
+        Serial.println("e0");
+        goto stop;
+      }
+      //Print matrix data
+      for(i=0;i<N_SENSORS;i++) {
+        Serial.print(m[curve][i], DEC); Serial.print(" ");
+      }
+      Serial.println("");
+      goto stop;
+    }
+
+    //Get sensors
+    if(cmd[0]=='g'&&cmd[1]=='s') {
+      printSensors(true);
+      goto stop;
+    }
+
+    //Switch to PSC mode
+    if(cmd[0]=='p'&&cmd[1]=='s'&&cmd[2]=='c') {
       psc=true;
+      goto stop;
     }
   } else {
-    if(r.startsWith("!")) {
+    //In PSC mode, we only scan for an exclamation mark to switch to console mode
+    if(cmd[0]=='!') {
       psc=false;
+      goto stop;
     }
   }
 

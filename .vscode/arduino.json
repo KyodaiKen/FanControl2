@@ -2,5 +2,6 @@
     "sketch": "sketch.ino",
     "board": "arduino:avr:nano",
     "configuration": "cpu=atmega328old",
-    "port": "COM5"
+    "port": "COM5",
+    "output": "..\\ArduinoOutput"
 }
