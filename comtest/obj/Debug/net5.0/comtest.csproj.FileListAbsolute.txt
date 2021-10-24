@@ -1,0 +1,17 @@
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\comtest.exe
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\comtest.deps.json
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\comtest.runtimeconfig.json
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\comtest.runtimeconfig.dev.json
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\comtest.dll
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\ref\comtest.dll
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\comtest.pdb
+D:\Daten\GIT\FanControl2Test\comtest\bin\Debug\net5.0\RJCP.SerialPortStream.dll
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.csproj.AssemblyReference.cache
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.GeneratedMSBuildEditorConfig.editorconfig
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.AssemblyInfoInputs.cache
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.AssemblyInfo.cs
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.csproj.CoreCompileInputs.cache
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.dll
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\ref\comtest.dll
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.pdb
+D:\Daten\GIT\FanControl2Test\comtest\obj\Debug\net5.0\comtest.genruntimeconfig.cache
