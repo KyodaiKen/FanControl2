@@ -1,26 +1,30 @@
-﻿using System;
-using System.IO.Ports;
-using System.Threading.Tasks;
+﻿using System.IO.Ports;
 
 namespace FanController
 {
     public class Controller
     {
-        public delegate void StatusUpdatedEvent(string DeviceId, string Data);
-        public event StatusUpdatedEvent? StatusUpdated;
+        public delegate void SensorsUpdateEvent(string DeviceId, object Data);
+        public event SensorsUpdateEvent? OnSensorsUpdate;
 
-        public delegate void SettingsUpdatedEvent(string DeviceId, string Data);
-        public event SettingsUpdatedEvent? SettingsUpdated;
+        public delegate void ErrorEvent(string DeviceId, object Data);
+        public event ErrorEvent? OnError;
+
+        public delegate void WarningEvent(string DeviceId, object Data);
+        public event WarningEvent? OnWarning;
 
         private readonly SerialPort SerialPort;
         private bool Listening;
 
+        private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
+
         public string DeviceName { get; private set; }
+
+        private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
         internal Controller(SerialPort SerialPort, string DeviceName)
         {
             this.SerialPort = SerialPort;
-
             this.DeviceName = DeviceName;
         }
 
@@ -40,20 +44,60 @@ namespace FanController
 
             // Non awaited so it works in other thread
 
+            var readBuffer = new byte[64];
+
             Task.Run(() =>
             {
                 while (Listening)
                 {
-                    var data = SerialPort.ReadLine();
+                    // Read till the patter is found, use if needed to process larger inputs that needs several packages to arrive
+                    //var data = SerialPort.ReadTo("EOF");
 
-                    if (data.StartsWith(Constants.ResponsePrefixStatus))
+                    var data = SerialPort.Read(readBuffer, 0, readBuffer.Length);
+
+                    if (data < 1)
                     {
-                        StatusUpdated?.Invoke(DeviceName, data[Constants.ResponsePrefixStatus.Length..]);
+                        OnError?.Invoke(DeviceName, "No data was read");
                     }
-                    else if (data.StartsWith(Constants.ResponsePrefixSettings))
+
+                    // Status Byte
+                    var status = readBuffer[0];
+
+                    if (status == Commands.Status.RESP_ERR)
                     {
-                        // Process Commands
-                        SettingsUpdated?.Invoke(DeviceName, data[Constants.ResponsePrefixSettings.Length..]);
+                        OnError?.Invoke(DeviceName, readBuffer);
+                        continue;
+                    }
+
+                    if (status == Commands.Status.RESP_WRN)
+                    {
+                        OnWarning?.Invoke(DeviceName, readBuffer);
+                    }
+
+                    // Expected Behaviour
+                    //if (status == Commands.Status.RESP_OK)
+                    //{
+                    //    OnWarning?.Invoke(DeviceName, readBuffer);
+                    //}
+
+                    // Kind of response Byte
+                    var kind = readBuffer[1];
+
+                    if (kind == Commands.Request.RQST_GET_SENSORS)
+                    {
+                        OnSensorsUpdate?.Invoke(DeviceName, readBuffer);
+                    }
+                    else
+                    {
+                        if (!CommandAnswers.ContainsKey(kind))
+                        {
+                            CommandAnswers.Add(kind, readBuffer);
+                        }
+                        else
+                        {
+                            CommandAnswers[kind] = readBuffer;
+                        }
+                        waitHandle.Set();
                     }
                 }
             });
@@ -74,29 +118,33 @@ namespace FanController
             Listening = false;
         }
 
-#warning need proper implementation and to process the data recived from each command
-        public void SetNewCurve(string data)
+#warning needs to be tested, seriously, dont use this
+        public void SetNewCurve(Curve data)
         {
             throw new NotImplementedException();
 
-            SerialPort.WriteLine("NewData");
+            var bin = data.ConvertToBinary();
+
+            SerialPort.Write(bin, 0, bin.Length);
         }
 
-        public void GetCurrentCurve()
+        public Curve GetCurrentCurve()
         {
-            throw new NotImplementedException();
+            const byte commandKey = Commands.Request.RQST_GET_CURVE;
+            SerialPort.SendCommand(commandKey);
 
-            SerialPort.WriteLine("NewData");
-        }
+            while (true)
+            {
+                waitHandle.WaitOne();
 
-        public void SetName(string newName)
-        {
-            SerialPort.WriteLine($"Name{newName}");
-        }
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    // Convert data to curve
 
-        public void GetName(string newName)
-        {
-            SerialPort.WriteLine($"Name?");
+                    CommandAnswers.Remove(commandKey);
+                    return new Curve();
+                }
+            }
         }
     }
 }

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace comtest
 {
-    class Program
+    public static class Program
     {
         static List<Controller> controllers;
         static async Task Main(string[] args)
@@ -14,8 +14,7 @@ namespace comtest
 
             foreach (var controller in controllers)
             {
-                controller.StatusUpdated += Controller_StatusUpdated;
-                controller.SettingsUpdated += Controller_SettingsUpdated;
+                controller.OnSensorsUpdate += OnSensorsUpdate;
                 controller.StartListening();
             }
 
@@ -24,12 +23,7 @@ namespace comtest
             await Task.Delay(-1);
         }
 
-        private static void Controller_SettingsUpdated(string DeviceId, string Data)
-        {
-            Console.WriteLine($"Settings Updated For => '{DeviceId}' => '{Data}'");
-        }
-
-        private static void Controller_StatusUpdated(string DeviceId, string Data)
+        private static void OnSensorsUpdate(string DeviceId, object Data)
         {
             Console.WriteLine($"Device => '{DeviceId}' Data => '{Data}'");
         }

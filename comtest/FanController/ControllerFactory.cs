@@ -23,7 +23,8 @@ namespace FanController
 
                     currentPort.NewLine = Constants.NewLineOverride;
 
-                    currentPort.WriteLine("Device?");
+                    // HandShakePacket
+                    currentPort.SendCommand(Commands.Request.RQST_IDENTIFY);
 
                     var getDevice = new Task<string>(() =>
                     {
