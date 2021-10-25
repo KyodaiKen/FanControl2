@@ -13,7 +13,7 @@ namespace FanController
 
             foreach (var port in portsConected)
             {
-                var currentPort = new SerialPort(port);
+                var currentPort = new SerialPort(port, 115200);
 
                 try
                 {
