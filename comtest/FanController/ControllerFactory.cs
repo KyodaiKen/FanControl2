@@ -30,10 +30,13 @@ namespace FanController
                     {
                         while (true)
                         {
-                            var device = currentPort.ReadLine();
-                            if (device?.StartsWith(Constants.ResponsePrefixHandShake) == true)
+                            if (currentPort.BytesToRead > 0)
                             {
-                                return device[Constants.ResponsePrefixHandShake.Length..];
+                                var device = currentPort.ReadExisting();
+                                if (device?.StartsWith(Constants.ResponsePrefixHandShake) == true)
+                                {
+                                    return device[Constants.ResponsePrefixHandShake.Length..];
+                                }
                             }
                         }
                     });

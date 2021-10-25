@@ -12,7 +12,7 @@ namespace FanController
 
         internal const string ResponsePrefixStatus = "Status";
         internal const string ResponsePrefixSettings = "Settings";
-        internal const string ResponsePrefixHandShake = "HandShake";
+        internal const string ResponsePrefixHandShake = "KyoudaiKen FCNG";
         internal const string ResponsePrefixError = "Error";
         internal const string ResponsePrefixCommandAnswer = "CommandAnswer";
     }
