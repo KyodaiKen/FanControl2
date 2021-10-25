@@ -17,6 +17,7 @@ namespace FanController
 
                 try
                 {
+                    Console.WriteLine($"Opening {port}");
                     currentPort.Open();
 
                     currentPort.WriteTimeout = Timeout.Infinite;
