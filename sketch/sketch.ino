@@ -1,4 +1,4 @@
-//ArduPWM PC fan controller Mk III - SEP 15 2019
+//ArduPWM PC fan controller Mk IV - OCT 26 2021
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
 //#include <arduino.h>
 #include <stdlib.h>
