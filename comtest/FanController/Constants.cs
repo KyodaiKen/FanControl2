@@ -1,20 +1,21 @@
 ﻿using System.Collections.Immutable;
+using System.Text;
 
 namespace FanController
 {
     internal static class Constants
     {
-        internal const string CompatibleDeviceId = "KyoController";
-        internal const string NewLineOverride = "\r\n";
+        //internal const string NewLineOverride = "\r\n";
 
 #warning adjust timeout
         internal const int Timeout = 100000;
 
         internal const string ResponsePrefixStatus = "Status";
         internal const string ResponsePrefixSettings = "Settings";
-        internal const string ResponsePrefixHandShake = "KyoudaiKen FCNG";
         internal const string ResponsePrefixError = "Error";
         internal const string ResponsePrefixCommandAnswer = "CommandAnswer";
+        internal const string ResponsePrefixHandShake = "KyoudaiKen FCNG";
+        internal static readonly byte[] ResponsePrefixHandShakeBytes = Encoding.ASCII.GetBytes(ResponsePrefixHandShake);
     }
 
     internal static class Commands

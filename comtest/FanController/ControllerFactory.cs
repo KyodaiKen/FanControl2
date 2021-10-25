@@ -1,4 +1,5 @@
 ﻿using System.IO.Ports;
+using System.Text;
 
 namespace FanController
 {
@@ -21,23 +22,33 @@ namespace FanController
                     currentPort.WriteTimeout = Timeout.Infinite;
                     currentPort.ReadTimeout = Timeout.Infinite;
 
-                    currentPort.NewLine = Constants.NewLineOverride;
+                    //currentPort.NewLine = Constants.NewLineOverride;
 
                     // HandShakePacket
                     currentPort.SendCommand(Commands.Request.RQST_IDENTIFY);
 
-                    var getDevice = new Task<string>(() =>
+                    var buffer = new byte[64];
+
+                    var getDevice = new Task<byte[]>(() =>
                     {
                         while (true)
                         {
-                            if (currentPort.BytesToRead > 0)
+                            var dataRead = currentPort.Read(buffer, 0, buffer.Length);
+                            if (dataRead < Constants.ResponsePrefixHandShakeBytes.Length)
                             {
-                                var device = currentPort.ReadExisting();
-                                if (device?.StartsWith(Constants.ResponsePrefixHandShake) == true)
-                                {
-                                    return device[Constants.ResponsePrefixHandShake.Length..];
-                                }
+                                // Incompatible device falls here
+                                continue;
                             }
+
+                            if (buffer[0..Constants.ResponsePrefixHandShakeBytes.Length] != Constants.ResponsePrefixHandShakeBytes)
+                            {
+                                // Incompatible device falls here
+                                continue;
+                            }
+
+                            var id = buffer[Constants.ResponsePrefixHandShakeBytes.Length..buffer.Length];
+
+                            return id;
                         }
                     });
 
@@ -50,39 +61,9 @@ namespace FanController
                         continue;
                     }
 
-                    var device = await getDevice;
+                    var device = Encoding.ASCII.GetString(await getDevice);
 
-                    if (device != Constants.CompatibleDeviceId)
-                    {
-                        continue;
-                    }
-
-                    currentPort.WriteLine("Who?");
-
-                    var getWho = new Task<string>(() =>
-                    {
-                        while (true)
-                        {
-                            var who = currentPort.ReadLine();
-                            if (who?.StartsWith(Constants.ResponsePrefixHandShake) == true)
-                            {
-                                return who[Constants.ResponsePrefixHandShake.Length..];
-                            }
-                        }
-                    });
-
-                    getWho.Start();
-
-                    if (await Task.WhenAny(getWho, Task.Delay(Constants.Timeout)) != getWho)
-                    {
-                        // timeout logic
-                        currentPort.Close();
-                        continue;
-                    }
-
-                    var deviceName = await getWho;
-
-                    controllers.Add(new Controller(currentPort, deviceName));
+                    controllers.Add(new Controller(currentPort, device));
                 }
                 catch (Exception ex)
                 {
