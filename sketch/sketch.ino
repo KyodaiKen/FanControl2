@@ -1,4 +1,4 @@
-//ArduPWM PC fan controller Mk III - SEP 15 2019
+//ArduPWM PC fan controller Mk IV - OCT 26 2021
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
 //#include <arduino.h>
 #include <stdlib.h>
@@ -702,6 +702,8 @@ void loop()
             break;
         case RQST_READ_FROM_EEPROM:
 
+            readPinConfig();
+            readThermostatCalibration();
             readCurves();
             readMatrix();
             Serial.write(RESP_OK);
@@ -709,8 +711,10 @@ void loop()
             break;
         case RQST_WRITE_TO_EEPROM:
 
-            writeMatrix();
+            writePinConfig();
+            writeThermostatCalibration();
             writeCurves();
+            writeMatrix();
             writeEEPROM_CRC();
             Serial.write(RESP_OK);
 
