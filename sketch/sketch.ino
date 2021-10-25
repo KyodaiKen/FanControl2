@@ -702,6 +702,8 @@ void loop()
             break;
         case RQST_READ_FROM_EEPROM:
 
+            readPinConfig();
+            readThermostatCalibration();
             readCurves();
             readMatrix();
             Serial.write(RESP_OK);
@@ -709,8 +711,10 @@ void loop()
             break;
         case RQST_WRITE_TO_EEPROM:
 
-            writeMatrix();
+            writePinConfig();
+            writeThermostatCalibration();
             writeCurves();
+            writeMatrix();
             writeEEPROM_CRC();
             Serial.write(RESP_OK);
 
