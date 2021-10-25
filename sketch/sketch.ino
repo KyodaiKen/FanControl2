@@ -6,41 +6,41 @@
 
 //#define DEBUG
 
+#define RXTX_TIMEOUT 4000
+#define SERIAL_BAUDRATE 115200
+
 ////ID MESSAGE////
 #define IDMSG "KyoudaiKen FCNG"
-
-#pragma region STATE_MACHINE
-#define MODE_READY 0
-
-#define MODE_SET_CURVE 2
-#define MODE_SET_MATRIX 3
-#define MODE_GET_CURVE 6
-
-#define MODE_SM_DEFAULT 0
-#define MODE_SM_CURVE 1
-#define MODE_SM_SC_POINT 2
-#define MODE_SM_SM_MATRIX 2
-#pragma endregion STATE_MACHINE
 
 #pragma region PROTOCOL
 ////REQUEST BYTES////
 #define RQST_IDENTIFY 0xF0
 #define RQST_CAPABILITIES 0xFC
+
 #define RQST_SET_CURVE 0xA0
 #define RQST_SET_MATRIX 0xA1
+#define RQST_SET_ID 0xA2
+#define RQST_SET_CAL_RESISTRS 0xA3
+#define RQST_SET_CAL_OFFSETS 0xA4
+#define RQST_SET_CAL_SH_COEFFS 0xA5
+#define RQST_SET_PINS 0xA6
+
 #define RQST_GET_CURVE 0xAA
 #define RQST_GET_MATRIX 0xAB
+#define RQST_GET_CAL_RESISTRS 0xAC
+#define RQST_GET_CAL_OFFSETS 0xAD
+#define RQST_GET_CAL_SH_COEFFS 0xAE
+#define RQST_GET_PINS 0xAF
 #define RQST_GET_SENSORS 0xBA
+
+
 #define RQST_WRITE_TO_EEPROM 0xDD
 #define RQST_READ_FROM_EEPROM 0xDF
-#define RQST_NEXT 0xFA
-#define RQST_END 0xEF
 
 ////RESPONSE BYTES////
 #define RESP_OK 0x01
 #define RESP_ERR 0xFF
 #define RESP_WRN 0xB6
-#define RESP_END 0xFE
 
 ////RESPONSE ERRORS////
 #define ERR_INDEX_OUT_OF_BOUNDS 0x10
@@ -48,7 +48,6 @@
 #define ERR_DUTY_CYCLE_OUT_OF_RANGE 0x12
 #define ERR_TIMEOUT 0xCC
 #define ERR_EEPROM 0xEE
-#define WRN_MAX_PONTS_REACHED 0xC4
 #pragma endregion PROTOCOL
 
 #pragma region CONFIGURATION
@@ -56,12 +55,6 @@
 #define N_CURVES 3
 #define N_TEMP_PROBE_TESTS 1
 #define N_RAVG 32
-
-/* 
- * The following constants can be used if your micro controller is more powerful
- * You can enhance the curve upper bound (maximum number of points) CURVE_UB
- * Do not forget to adjust the EEPROM offsets!
- */
 
 //Curve data layout
 #define CURVE_UB 12
@@ -74,17 +67,15 @@
 #define MATRIX_START N_CURVES *CURVE_STRUCT_LEN
 
 //EEPROM offsets
-#define EEPROM_CHECKSUM_OFFSET 505
+#define EEPROM_CAL_COEFF_OFFSET 470
+#define EEPROM_CAL_OFFST_OFFSET 458
+#define EEPROM_CAL_RESIS_OFFSET 446
+#define EEPROM_CHECKSUM_OFFSET 507
+#define EEPROM_PINS_OFFSET 440
+#define EEPROM_ID_OFFSET 506
 #pragma endregion CONFIGURATION
 
 #pragma region WORKING_VARIABLES
-//Interaction mode
-unsigned char mode;
-unsigned char submode;
-
-unsigned char current_curve;
-unsigned char current_index;
-
 //Thermistor (analog) pins
 int thsp[N_SENSORS];
 
@@ -118,11 +109,10 @@ struct curvePoint
 
 //Curves and matrix data
 curvePoint cdta[N_CURVES][CURVE_UB];
-byte cdtal[N_CURVES];
+unsigned char cdtal[N_CURVES];
 float m[N_CURVES][N_SENSORS];
 
 bool is_eeprom_ok = false;
-
 #pragma endregion WORKING_VARIABLES
 
 #pragma region EEPROM_TOOLS
@@ -232,26 +222,87 @@ void writeMatrix()
     }
 }
 
-uint32_t CRC32(byte *data, uint32_t ignore_offset)
+void readThermostatCalibration() {
+    unsigned char i = 0;
+    
+    for(i = 0; i < N_SENSORS; i++) {
+        EEPROM.get(EEPROM_CAL_RESIS_OFFSET + i * 4, thsRpd[i]); //Read resistor values
+        EEPROM.get(EEPROM_CAL_OFFST_OFFSET + i * 4, thsco[i]); //Read callibtration offsets
+        
+        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 4, thscs[i][0]); //Read Steinhart-Hart coefficients
+        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 4 + 4, thscs[i][1]); //Read Steinhart-Hart coefficients
+        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 4 + 8, thscs[i][2]); //Read Steinhart-Hart coefficients
+    }
+}
+
+void writeThermostatCalibration() {
+    unsigned char i = 0;
+    
+    for(i = 0; i < N_SENSORS; i++) {
+        EEPROM.put(EEPROM_CAL_RESIS_OFFSET + i * 4, thsRpd[i]); //Write resistor values
+        EEPROM.put(EEPROM_CAL_OFFST_OFFSET + i * 4, thsco[i]); //Write callibtration offsets
+
+        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 4, thscs[i][0]); //Write Steinhart-Hart coefficients
+        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 4 + 4, thscs[i][1]); //Write Steinhart-Hart coefficients
+        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 4 + 8, thscs[i][2]); //Write Steinhart-Hart coefficients
+    }
+}
+
+void readPinConfig()
 {
-    const uint32_t crc_table[16] = {
+    unsigned char i = 0;
+
+    //Read thermal sensor pins
+    for(i = 0; i < N_SENSORS; i++)
+    {
+        EEPROM.get(EEPROM_PINS_OFFSET + i, thsp[i]);
+    }
+
+    //Read PWM channel pins
+    for(i = 0; i < N_SENSORS; i++)
+    {
+        EEPROM.get(EEPROM_PINS_OFFSET + i, cpp[i]);
+    }
+}
+
+void writePinConfig()
+{
+    unsigned char i = 0;
+
+    //Read thermal sensor pins
+    for(i = 0; i < N_SENSORS; i++)
+    {
+        EEPROM.put(EEPROM_PINS_OFFSET + i, thsp[i]);
+    }
+
+    //Read PWM channel pins
+    for(i = 0; i < N_SENSORS; i++)
+    {
+        EEPROM.put(EEPROM_PINS_OFFSET + i, cpp[i]);
+    }
+}
+
+unsigned long CALC_EEPROM_CRC32()
+{
+    const unsigned long crc_table[16] = {
         0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
         0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
         0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
         0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c
     };
 
-    uint32_t crc = ~0L;
-    for (uint32_t i = 0; i < sizeof(data); ++i)
+    unsigned long crc = ~0L;
+
+    for (int i = 0; i < EEPROM.length(); ++i)
     {
-        byte val = 0;
-        if (i > ignore_offset && i < ignore_offset + 4)
+        unsigned char val = 0;
+        if (i >= EEPROM_CHECKSUM_OFFSET && i < EEPROM_CHECKSUM_OFFSET + 4)
         {
             val = 0;
         }
         else
         {
-            val = data[i];
+            val = EEPROM[i];
         }
         crc = crc_table[(crc ^ val) & 0x0f] ^ (crc >> 4);
         crc = crc_table[(crc ^ (val >> 4)) & 0x0f] ^ (crc >> 4);
@@ -262,21 +313,15 @@ uint32_t CRC32(byte *data, uint32_t ignore_offset)
 
 void writeEEPROM_CRC()
 {
-    byte e[512];
-    for (uint16_t i = 0; i < 512; i++)
-        e[i] = EEPROM[i];
-    EEPROM.put(EEPROM_CHECKSUM_OFFSET, CRC32(e, EEPROM_CHECKSUM_OFFSET));
+    EEPROM.put(EEPROM_CHECKSUM_OFFSET, CALC_EEPROM_CRC32());
 }
 
 bool checkEEPROM_CRC()
 {
-    uint32_t crc = 0;
-    EEPROM.get(EEPROM_CHECKSUM_OFFSET, crc);
-    byte e[512];
-    for (uint16_t i = 0; i < 512; i++)
-        e[i] = EEPROM[i];
-    bool ok = (CRC32(e, EEPROM_CHECKSUM_OFFSET) == crc);
-    return ok;
+    unsigned long ee_crc = 0;
+    EEPROM.get(EEPROM_CHECKSUM_OFFSET, ee_crc);
+    return (CALC_EEPROM_CRC32() == ee_crc);
+    //return false;
 }
 #pragma endregion EEPROM_TOOLS
 
@@ -450,89 +495,17 @@ unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
 
     return index;
 }
+
+void say_hello() {
+    Serial.print(IDMSG); Serial.print(" "); Serial.println((unsigned char)EEPROM.read(EEPROM_ID_OFFSET));
+}
 #pragma endregion SERIAL_TOOLS
 
 void setup()
 {
-    #pragma region CONFIG_PINS
-    /* Pins:
-     * pin 3 = OC2B (timer 2 PWM output B)
-     * pin 11 = OC2A (timer 2 PWM output A)
-     * pin 9 = OC1B (timer 1 PWM output B)
-     * pin 10 = OC1A (timer 1 PWM output A)
-     * pin 5 = OC0B (timer 0 PWM output B)
-     * pin 6 = OC0A (timer 0 PWM output A)
-     */
-
-    //Configure thermistor pins
-    thsp[0] = 0;
-    thsp[1] = 1;
-    thsp[2] = 3;
+    unsigned char i;
     
-    //Configure channel's PWM output pins
-    cpp[0] = 3;
-    cpp[1] = 9;
-    cpp[2] = 10;
-    #pragma endregion CONFIG_PINS
-
-    #pragma region CONFIG_THERMISTOR_CALIBRATION
-    //Configure thermistor pulldown resistor values
-    thsRpd[0] = 9990;
-    thsRpd[1] = 9890;
-    thsRpd[2] = 9960;
-
-    //Configure thermistor calibration offsets and Steinhart-Hart coefficients
-    thsco[0] = 0;
-    thsco[1] = 0;
-    thsco[2] = 0;
-    thscs[0][0] = 0.0011431512594581995;
-    thscs[0][1] = 0.00023515745037380024;
-    thscs[0][2] = 6.187191114586837e-8;
-    //thscs[1][0]=-0.1745637090e-03;
-    //thscs[1][1]=4.260403485e-04;
-    //thscs[1][2]=-5.098359524e-07;
-    thscs[1][0] = 0.0028561410879575405;
-    thscs[1][1] = -0.00005243877323181964;
-    thscs[1][2] = 0.0000012584771402890711;
-    thscs[2][0] = 0.0028561410879575405;
-    thscs[2][1] = -0.00005243877323181964;
-    thscs[2][2] = 0.0000012584771402890711;
-
-    //Rolling average positions need to start at zero
-    tp = 0;
-
-    //Set temperatures to 1000 so it is known that it's the first reading
-    t[0] = 1000;
-    t[1] = 1000;
-    t[2] = 1000;
-    #pragma endregion CONFIG_THERMISTOR_CALIBRATION
-
-    #pragma region CONFIG_TIMERS_AND_PWM
-    // Configure Timer 1 and 2 for PWM @ 25 kHz.
-    TCCR1A = 0;
-    TCCR1B = 0;
-    TCNT1 = 0;
-    TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM11);
-    TCCR1B = _BV(WGM13) | _BV(CS10);
-    ICR1 = 160;
-
-    TCCR2A = 0;
-    TCCR2B = 0;
-    TCNT2 = 0;
-    TCCR2A = _BV(COM2B1) | _BV(WGM20);
-    TCCR2B = _BV(WGM22) | _BV(CS20);
-    OCR2A = 160;
-
-    //Set pins up for output
-    unsigned int i;
-    for (i = 0; i < N_CURVES; i++)
-    {
-        pinMode(cpp[i], OUTPUT);
-        setPulseWith(cpp[i], 100);
-    }
-
-    Serial.begin(115200);
-    #pragma endregion CONFIG_TIMERS_AND_PWM
+    Serial.begin(SERIAL_BAUDRATE);
 
     #pragma region READ_EEPROM
     //Zero curve and matrix memory
@@ -561,6 +534,49 @@ void setup()
             || !checkEEPROM_CRC()
         )
     {
+        #pragma region CONFIG_PINS
+        /* Pins:
+        * pin 3 = OC2B (timer 2 PWM output B)
+        * pin 11 = OC2A (timer 2 PWM output A)
+        * pin 9 = OC1B (timer 1 PWM output B)
+        * pin 10 = OC1A (timer 1 PWM output A)
+        * pin 5 = OC0B (timer 0 PWM output B)
+        * pin 6 = OC0A (timer 0 PWM output A)
+        */
+
+        //Configure thermistor pin defaults
+        thsp[0] = 0;
+        thsp[1] = 1;
+        thsp[2] = 3;
+        
+        //Configure channel's PWM output pin defaults
+        cpp[0] = 3;
+        cpp[1] = 9;
+        cpp[2] = 10;
+        #pragma endregion CONFIG_PINS
+
+        #pragma region THEMRISTORS
+        //Configure thermistor pulldown resistor value defaults
+        thsRpd[0] = 9990;
+        thsRpd[1] = 9890;
+        thsRpd[2] = 9960;
+
+        //Configure thermistor calibration offsets and Steinhart-Hart coefficient defaults
+        thsco[0] = 0;
+        thsco[1] = 0;
+        thsco[2] = 0;
+        thscs[0][0] = 0.0011431512594581995;
+        thscs[0][1] = 0.00023515745037380024;
+        thscs[0][2] = 6.187191114586837e-8;
+        thscs[1][0] = 0.0028561410879575405;
+        thscs[1][1] = -0.00005243877323181964;
+        thscs[1][2] = 0.0000012584771402890711;
+        thscs[2][0] = 0.0028561410879575405;
+        thscs[2][1] = -0.00005243877323181964;
+        thscs[2][2] = 0.0000012584771402890711;
+        #pragma endregion THEMRISTORS
+
+        #pragma region CURVES_AND_MATRIX
         //Set up default curves and matrix just ti get things going
         for (unsigned char c = 0; c < N_CURVES; c++)
         {
@@ -568,9 +584,9 @@ void setup()
             cdtal[c] = 2;
             //Create a linear curve between 0°C ≙ 0% and 100°C ≙ 100%
             cdta[c][0].temp = 0;
-            cdta[c][0].dc = 0;
+            cdta[c][0].dc = 33;
             cdta[c][1].temp = 100;
-            cdta[c][1].dc = 100;
+            cdta[c][1].dc = 33;
 
             //Set up a simple channel = output matrix
             for (unsigned char s = 0; s < N_SENSORS; s++)
@@ -578,48 +594,74 @@ void setup()
                 m[c][s] = 1;
             }
         }
-
-        /*
-        cdtal[0]=2; cdtal[1]=2; cdtal[2]=2;
-
-        cdta[0][0].temp=0; cdta[0][0].dc=0; cdta[0][1].temp=100; cdta[0][1].dc=100;
-        cdta[1][0].temp=0; cdta[1][0].dc=0; cdta[1][1].temp=100; cdta[1][1].dc=100;
-        cdta[2][0].temp=0; cdta[2][0].dc=0; cdta[2][1].temp=100; cdta[2][1].dc=100;
-
-        m[0][0]=1;m[0][1]=0;m[0][2]=0;
-        m[1][0]=0;m[1][1]=1;m[1][0]=0;
-        m[2][0]=0;m[2][1]=0;m[2][0]=1;
-        */
+        #pragma endregion CURVES_AND_MATRIX
 
         //Zero EEPROM
-        for (i = 0; i < 512; i++)
-            EEPROM.write(i, 0);
+        for(i = 0; i < 512; i++) EEPROM.write(i, 0);
+
         //Write to EEPROM:
+        writePinConfig();
+        writeThermostatCalibration();
         writeCurves();
         writeMatrix();
-        Serial.write(RESP_ERR);
+        writeEEPROM_CRC();
+
         Serial.write(ERR_EEPROM);
-        is_eeprom_ok = false;
+        is_eeprom_ok = true;
     }
     else
     {
+        readPinConfig();
+        readThermostatCalibration();
         readCurves();
         readMatrix();
         is_eeprom_ok = true;
     }
     #pragma endregion READ_EEPROM
 
-    //Set initial mode
-    mode = MODE_READY;
-    submode = MODE_SM_DEFAULT;
+    #pragma region CONFIG_TIMERS_AND_PWM
+    // Configure Timer 1 for PWM @ 25 kHz.
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCNT1 = 0;
+    TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM11);
+    TCCR1B = _BV(WGM13) | _BV(CS10);
+    ICR1 = 160;
 
-    Serial.println(IDMSG);
+    // Configure Timer 2 for PWM @ 25 kHz.
+    TCCR2A = 0;
+    TCCR2B = 0;
+    TCNT2 = 0;
+    TCCR2A = _BV(COM2B1) | _BV(WGM20);
+    TCCR2B = _BV(WGM22) | _BV(CS20);
+    OCR2A = 160;
+
+    //Set pins up for output
+    for (i = 0; i < N_CURVES; i++)
+    {
+        pinMode(cpp[i], OUTPUT);
+        setPulseWith(cpp[i], 100);
+    }
+    #pragma endregion CONFIG_TIMERS_AND_PWM
+
+    #pragma region PREP_THERMAL_READINGS
+     //Rolling average positions need to start at zero
+    tp = 0;
+
+    //Set temperatures to 1000 so it is known that it's the first reading
+    t[0] = 1000;
+    t[1] = 1000;
+    t[2] = 1000;
+    #pragma endregion PREP_THERMAL_READINGS
+
+    say_hello();
 }
 
 void loop()
 {
     unsigned char i;
     unsigned char request = 0x00;
+    unsigned char rqst_id;
 
     getTemperatures();
     setDutyCycles();
@@ -630,472 +672,341 @@ void loop()
 
     request = Serial.read();
 
-    /* Mode code */
-    switch (mode)
+    switch (request)
     {
-        case MODE_READY:
-        {
-            switch (request)
+        case RQST_IDENTIFY:
+
+            Serial.write(RESP_OK);
+            Serial.write((unsigned char)request);
+            say_hello();
+
+            break;
+        case RQST_CAPABILITIES:
+
+            Serial.write(RESP_OK);
+            Serial.write((unsigned char)request);
+            Serial.write(N_SENSORS);
+            Serial.write(N_CURVES);
+
+            break;
+        case RQST_GET_SENSORS:
+
+            sendSensorDataBinary();
+
+            break;
+        case RQST_READ_FROM_EEPROM:
+
+            readCurves();
+            readMatrix();
+            Serial.write(RESP_OK);
+
+            break;
+        case RQST_WRITE_TO_EEPROM:
+
+            writeMatrix();
+            writeCurves();
+            writeEEPROM_CRC();
+            Serial.write(RESP_OK);
+
+            break;
+
+        case RQST_SET_ID:
+
+            while (Serial.available() != 1 && i < RXTX_TIMEOUT)
             {
-            case RQST_IDENTIFY:
+                delay(1);
+                i++;
+            }
 
-                Serial.print(IDMSG);
+            if (Serial.available() == 1)
+            {
 
-                break;
-            case RQST_CAPABILITIES:
-
-                Serial.write(N_SENSORS);
-                Serial.write(N_CURVES);
-
-                break;
-            case RQST_GET_SENSORS:
-
-                sendSensorDataBinary();
-
-                break;
-            case RQST_READ_FROM_EEPROM:
-
-                readCurves();
-                readMatrix();
-                Serial.write(RESP_OK);
-
-                break;
-            case RQST_WRITE_TO_EEPROM:
-
-                writeMatrix();
-                writeCurves();
+                unsigned char new_id = Serial.read();
+                EEPROM.write(EEPROM_ID_OFFSET, new_id);
                 writeEEPROM_CRC();
                 Serial.write(RESP_OK);
 
-                break;
-            case RQST_SET_CURVE:
-
-                mode = MODE_SET_CURVE;
-                submode = MODE_SM_CURVE;
-                Serial.write(RESP_OK);
-
-                break;
-
-            case RQST_SET_MATRIX:
-
-                mode = MODE_SET_MATRIX;
-                submode = MODE_SM_CURVE;
-                Serial.write(RESP_OK);
-
-                break;
-
-            case RQST_GET_CURVE:
-
-                mode = MODE_GET_CURVE;
-                submode = MODE_SM_CURVE;
-                Serial.write(RESP_OK);
-
-                break;
-
-            case RQST_GET_MATRIX:
-
-                //Wait for a byte that indicates the curve number
-                i = 0;
-                current_curve = 0;
-                while (Serial.available() != 1 && i < 200)
-                {
-                    delay(1);
-                    i++;
-                }
-
-                if (Serial.available() == 1)
-                {
-                    current_curve = Serial.read();
-
-                    if (current_curve > N_CURVES)
-                    {
-                        mode = MODE_READY;
-                        submode = MODE_SM_DEFAULT;
-                        Serial.write(RESP_ERR);
-                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
-                    }
-                    else
-                    {
-                        for (unsigned char s = 0; s < N_SENSORS; s++)
-                            serialWriteFloat(m[current_curve][s]);
-                    }
-                }
-                else
-                {
-                    mode = MODE_READY;
-                    submode = MODE_SM_DEFAULT;
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
-
-                break;
-
-            case 's': //human setup mode
-            case 'S':
-
-                Serial.println("d");
-
-                //Check if there is more information to read. If not, cancel. 
-                if (Serial.available() <= 1)
-                    return;
-
-                char setWhat = Serial.read();
-                char chrCurve[2];
-                chrCurve[1] = 0x00;
-                chrCurve[0] = Serial.read();
-                unsigned char curve = 0xFF;
-                
-                //In case the next byte is a space, get next byte and parse it as number, if available.
-                if(chrCurve[0]==0x20) {
-                    if(Serial.available()) {
-                        chrCurve[0] = Serial.read();
-                        curve = (unsigned char)atoi(chrCurve);
-                    } else {
-                        Serial.println("No curve given");
-                        return;
-                    }
-                } else {
-                    curve = (unsigned char)atoi(chrCurve);
-                }
-
-                if(curve>N_CURVES) {
-                    Serial.println("Invalid curve");
-                    return;
-                }
-
-                switch (setWhat) {
-                    case 'c': //Curve
-                    case 'C':
-
-                        unsigned char tcpl;
-                        tcpl = 0;
-                        curvePoint tcp[CURVE_UB];
-                        for (unsigned char i = 0; i < CURVE_UB; i++) {
-                            tcp[i].temp=0;
-                            tcp[i].dc=0;
-                        }
-
-                        bool cancel;
-                        cancel = false;
-                    
-                        char buff[64];
-                        for(unsigned char i = 0; i < 64; i++) buff[i] = 0;
-                        unsigned char bl;
-                        bl = 0;
-                        //Loop until an 'f' is sent
-                        while(!cancel) {
-
-                            bl = serialReadLine(10000, buff);
-
-                            bool other = false; // LOL
-                            char temp[bl];
-                            unsigned char temp_idx = 0;
-                            for(unsigned char i = 0; i < bl; i++) temp[i] = 0;
-                            char dc[bl];
-                            unsigned char dc_idx = 0;
-                            for(unsigned char i = 0; i < bl; i++) dc[i] = 0;
-
-                            for(unsigned char i = 0; i < bl; i++) {
-                                if(buff[i] == ' '
-                                    || buff[i] == ';'
-                                    || buff[i] == ','
-                                    || buff[i] == ':') {
-                                    other=true;
-                                } else {
-                                    if(!other) {
-                                        temp[temp_idx++] = buff[i];
-                                    } else {
-                                        dc[dc_idx++] = buff[i];
-                                    }
-                                }
-                            }
-
-                            if(other!=true) {
-                                Serial.println("No value pair detected");
-                                continue;
-                            }
-
-                            tcp[tcpl++].temp = (float)atof(temp);
-                            tcp[tcpl].dc = (byte)atoi(dc);
-
-                            if(tcp[tcpl].temp > 100 || tcp[tcpl].dc > 100) {
-                                Serial.println("Value out of range");
-                                tcpl--;
-                                continue;
-                            }
-
-                            if(bl == 1 && buff[0] == 'f')
-                                cancel = true;
-
-                        }
-
-                        //Copy the temp data into the real curve data
-                        for(unsigned char i = 0; i < tcpl; i++)
-                            cdta[curve][i] = tcp[i];
-                        cdtal[curve] = tcpl;
-
-                    break;
-
-                    case 'm': //Matrix
-                    case 'M':
-
-                        //
-
-                    break;
-                }
-
-                break;
             }
-            break;
-        }
-        case MODE_SET_CURVE:
-        {
-            switch (submode)
+            else
             {
-            case MODE_SM_CURVE:
 
-                //Wait for a byte that indicates the curve number
-                i = 0;
-                while (Serial.available() != 1 && i < 200)
-                {
-                    delay(1);
-                    i++;
-                }
-                if (Serial.available() == 1)
-                {
-                    current_curve = Serial.read();
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
 
-                    if (current_curve > N_CURVES)
-                    {
-                        mode = MODE_READY;
-                        submode = MODE_SM_DEFAULT;
-                        Serial.write(RESP_ERR);
-                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
-                    }
-                    else
-                    {
-                        //Next step
-                        Serial.write(RESP_OK);
-                        submode = MODE_SM_SC_POINT;
-                        current_index = 0;
-                    }
-                }
-                else
-                {
-                    mode = MODE_READY;
-                    submode = MODE_SM_DEFAULT;
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
-
-                break;
-            case MODE_SM_SC_POINT:
-
-                unsigned char rqnext = 0;
-                i = 0;
-                while (Serial.available() != 1 && i < 200)
-                {
-                    delay(1);
-                    i++;
-                }
-
-                if (Serial.available() == 1)
-                {
-                    rqnext = Serial.read();
-
-                    if (rqnext == RQST_NEXT)
-                    {
-                        //Wait for 6 bytes containing a float for the temperature and a byte for the duty cycle
-                        i = 0;
-                        while (Serial.available() != 5 && i < 200)
-                        {
-                            delay(1);
-                            i++;
-                        }
-
-                        if (Serial.available() == 5)
-                        {
-                            if (current_index + 1 >= CURVE_UB)
-                            {
-                                //Cancel if maximum curve points reached, finalizing
-                                cdtal[current_curve] = current_index;
-                                current_index = 0;
-                                mode = MODE_READY;
-                                submode = MODE_SM_DEFAULT;
-                                Serial.write(RESP_WRN);
-                                Serial.write(WRN_MAX_PONTS_REACHED);
-                            }
-                            else
-                            {
-                                cdta[current_curve][current_index].temp = Serial.parseFloat();
-                                cdta[current_curve][current_index].dc = Serial.read();
-                                current_index++;
-                            }
-                        }
-                        else
-                        {
-                            mode = MODE_READY;
-                            submode = MODE_SM_DEFAULT;
-                            Serial.write(RESP_ERR);
-                            Serial.write(ERR_TIMEOUT);
-                        }
-                    }
-                    else
-                    {
-                        //Finish signal sent, finalizing
-                        cdtal[current_curve] = current_index;
-                        current_index = 0;
-                        mode = MODE_READY;
-                        submode = MODE_SM_DEFAULT;
-                        Serial.write(RESP_OK);
-                    }
-                }
-                else
-                {
-                    mode = MODE_READY;
-                    submode = MODE_SM_DEFAULT;
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
-
-                break;
             }
-            break;
-        }
-        case MODE_SET_MATRIX:
-        {
-            switch (request)
-            {
-            case MODE_SM_CURVE:
 
-                //Wait for a byte that indicates the curve number
-                i = 0;
-                while (Serial.available() != 1 && i < 200)
+            break;
+
+        case RQST_GET_CAL_RESISTRS:
+
+            for(i = 0; i < N_SENSORS; i++) serialWriteFloat(thsRpd[i]);
+
+            break;
+
+        case RQST_GET_CAL_OFFSETS:
+
+            for(i = 0; i < N_SENSORS; i++) serialWriteFloat(thsco[i]);
+
+            break;
+
+        case RQST_GET_CAL_SH_COEFFS:
+
+            Serial.write(RESP_OK);
+            Serial.write((unsigned char)request);
+            for(i = 0; i < N_SENSORS; i++)
+            {
+                serialWriteFloat(thscs[i][0]);
+                serialWriteFloat(thscs[i][1]);
+                serialWriteFloat(thscs[i][2]);
+            }
+
+            break;
+
+        case RQST_GET_PINS:
+
+            Serial.write(RESP_OK);
+            Serial.write((unsigned char)request);
+            for(i = 0; i < N_SENSORS; i++) Serial.write(thsp[i]);
+            for(i = 0; i < N_SENSORS; i++) Serial.write(cpp[i]);
+
+            break;
+
+        case RQST_GET_CURVE:
+
+            while (Serial.available() != 1 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            if (Serial.available() == 1)
+            {
+
+                rqst_id = Serial.read(); //rqst_id is the curve
+
+                if(rqst_id > N_CURVES)
                 {
-                    delay(1);
-                    i++;
+                    Serial.write(RESP_ERR);
+                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
                 }
-                if (Serial.available() == 1)
+                else
                 {
-                    current_curve = Serial.read();
-                    //Next step
                     Serial.write(RESP_OK);
-                    submode = MODE_SM_SM_MATRIX;
-                }
-                else
-                {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
+                    Serial.write((unsigned char)request);
+                    Serial.write(rqst_id); //Send curve ID (for the struct) (byte)
+                    Serial.write(cdtal[rqst_id]); //Send length (byte)
 
-                break;
-
-            case MODE_SM_SM_MATRIX:
-
-                //Wait for bytes that contain floats for the matrix definition
-                i = 0;
-                while (Serial.available() != N_SENSORS * 4 && i < 200)
-                {
-                    delay(1);
-                    i++;
+                    for(i = 0; i < cdtal[rqst_id]; i++) {
+                        serialWriteFloat(cdta[rqst_id][i].temp); //Send temperature (float32)
+                        Serial.write(cdta[rqst_id][i].dc); //Send duty cycle (byte)
+                    }
                 }
 
-                if (Serial.available() == N_SENSORS * 4 && i)
-                {
-                    for (unsigned char i = 0; i < N_SENSORS; i++)
-                        m[current_curve][i] = Serial.parseFloat();
-                }
-                else
-                {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
-
-                break;
+            }
+            else
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
             }
 
             break;
-        }
-        case MODE_GET_CURVE:
-        {
-            switch (request)
+
+        case RQST_GET_MATRIX:
+
+            //Wait for a byte that indicates the curve number
+            i = 0;
+            while (Serial.available() != 1 && i < RXTX_TIMEOUT)
             {
-            case MODE_SM_CURVE:
-
-                //Wait for a byte that indicates the curve number
-                i = 0;
-                while (Serial.available() != 1 && i < 200)
-                {
-                    delay(1);
-                    i++;
-                }
-
-                if (Serial.available() == 1)
-                {
-                    current_curve = Serial.read();
-
-                    if (current_curve > N_CURVES)
-                    {
-                        mode = MODE_READY;
-                        submode = MODE_SM_DEFAULT;
-                        Serial.write(RESP_ERR);
-                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
-                    }
-                    else
-                    {
-                        //Next step
-                        Serial.write(RESP_OK);
-                        submode = MODE_SM_SC_POINT;
-                        current_index = 0;
-                    }
-                }
-                else
-                {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
-
-                break;
-
-            case MODE_SM_SC_POINT:
-                unsigned char rqnext = 0;
-
-                i = 0;
-                while (Serial.available() != 1 && i < 200)
-                {
-                    delay(1);
-                    i++;
-                }
-
-                if (Serial.available() == 1)
-                {
-                    rqnext = Serial.read();
-
-                    if (rqnext == RQST_NEXT)
-                    {
-                        if (current_index + 1 >= CURVE_UB)
-                        {
-                            current_index = 0;
-                            mode = MODE_READY;
-                            submode = MODE_SM_DEFAULT;
-                            Serial.write(RESP_END);
-                        }
-                        else
-                        {
-                            serialWriteFloat(cdta[current_curve][current_index].temp);
-                            Serial.write(cdta[current_curve][current_index].dc);
-                            current_index++;
-                        }
-                    }
-                }
-                else
-                {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
-                }
-
-                break;
+                delay(1);
+                i++;
             }
-        }
+
+            if (Serial.available() == 1)
+            {
+                rqst_id = Serial.read(); //rqst_id is the curve for the matrix
+
+                if (rqst_id > N_CURVES)
+                {
+                    Serial.write(RESP_ERR);
+                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                }
+                else
+                {
+                    Serial.write(RESP_OK);
+                    Serial.write((unsigned char)request);
+                    Serial.write(rqst_id); //Write the requested ID for the matrix struct, length is always N_SENMSORS from capabilities
+                    for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(m[rqst_id][s]);
+                }
+            }
+            else
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
+            }
+
+            break;
+
+        case RQST_SET_CURVE:
+
+            //Wait for 2 bytes. One for the curve ID and one for the length.
+            i = 0;
+            while (Serial.available() > 2 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            if (Serial.available() > 2)
+            {
+                rqst_id = Serial.read(); //Read curve id to be updaterd
+                unsigned char sc_data_len = Serial.read(); //Read number of curve points
+
+                //Wait for the rest of the data if it wasn't transmitted already. 
+                i = 0;
+                while (Serial.available() == (sc_data_len + 1) * CURVE_FIELD_LEN && i < RXTX_TIMEOUT)
+                {
+                    delay(1);
+                    i++;
+                }
+
+                if (rqst_id > N_CURVES && sc_data_len > CURVE_UB)
+                {
+                    Serial.write(RESP_ERR);
+                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                }
+                else
+                {
+                    //Read the data and store it in our memory array
+                    for(i = 0; i < sc_data_len; i++) {
+                        float s_temp = Serial.parseFloat();
+                        unsigned char s_dc = Serial.read();
+                        if(s_dc > 100) s_dc = 100;
+                        cdta[rqst_id][i].temp = s_temp;
+                        cdta[rqst_id][i].dc = s_dc;
+                    }
+
+                    cdtal[rqst_id] = sc_data_len; //Store length
+
+                    Serial.write(RESP_OK);
+                }
+            }
+            else
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
+            }
+
+            break;
+
+        case RQST_SET_MATRIX:
+
+            //Wait for the curve ID for the matrix
+            i = 0;
+            while (Serial.available() > 1 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            if (Serial.available() > 1)
+            {
+                rqst_id = Serial.read(); //Read curve id to be updaterd
+                unsigned char sc_data_len = Serial.read(); //Read number of curve points
+
+                //Wait for the rest of the data if it wasn't transmitted already. 
+                i = 0;
+                while (Serial.available() == 12 && i < RXTX_TIMEOUT)
+                {
+                    delay(1);
+                    i++;
+                }
+
+                if (rqst_id > N_CURVES)
+                {
+                    Serial.write(RESP_ERR);
+                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                }
+                else
+                {
+                    //Read the data and store it in our memory array
+                    for(i = 0; i < 3; i++) {
+                        m[rqst_id][i] = Serial.parseFloat();
+                    }
+
+                    Serial.write(RESP_OK);
+                }
+            }
+            else
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
+            }
+
+            break;
+
+        case RQST_SET_CAL_RESISTRS:
+
+            //Wait for the data
+            i = 0;
+            while (Serial.available() == N_SENSORS * 4 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            for(i = 0; i < N_SENSORS; i++) thsRpd[i] = Serial.parseFloat();
+            Serial.write(RESP_OK);
+
+            break;
+
+        case RQST_SET_CAL_OFFSETS:
+
+            //Wait for the data
+            i = 0;
+            while (Serial.available() == N_SENSORS * 4 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            for(i = 0; i < N_SENSORS; i++) thsco[i] = Serial.parseFloat();
+            Serial.write(RESP_OK);
+
+            break;
+
+        case RQST_SET_CAL_SH_COEFFS:
+
+            //Wait for the data
+            i = 0;
+            while (Serial.available() == N_SENSORS * 12 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            for(i = 0; i < N_SENSORS; i++) {
+                thscs[i][0] = Serial.parseFloat();
+                thscs[i][1] = Serial.parseFloat();
+                thscs[i][2] = Serial.parseFloat();
+            }
+            Serial.write(RESP_OK);
+
+            break;
+
+        case RQST_SET_PINS:
+
+            //Wait for the data
+            i = 0;
+            while (Serial.available() == N_SENSORS * 4 && i < RXTX_TIMEOUT)
+            {
+                delay(1);
+                i++;
+            }
+
+            for(i = 0; i < N_SENSORS; i++) thsp[i] = Serial.read();
+            for(i = 0; i < N_SENSORS; i++) cpp[i] = Serial.read();
+            Serial.write(RESP_OK);
+
+            break;
     }
 }
