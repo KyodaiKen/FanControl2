@@ -15,12 +15,13 @@ namespace FanController
         private readonly SerialPort SerialPort;
         private bool Listening;
 
-        public string DeviceId { get; private set; }
+        public string DeviceName { get; private set; }
 
-        internal Controller(SerialPort SerialPort, string DeviceId)
+        internal Controller(SerialPort SerialPort, string DeviceName)
         {
             this.SerialPort = SerialPort;
-            this.DeviceId = DeviceId;
+
+            this.DeviceName = DeviceName;
         }
 
         public void StartListening()
@@ -47,16 +48,12 @@ namespace FanController
 
                     if (data.StartsWith(Constants.ResponsePrefixStatus))
                     {
-                        StatusUpdated?.Invoke(DeviceId, data[Constants.ResponsePrefixStatus.Length..]);
+                        StatusUpdated?.Invoke(DeviceName, data[Constants.ResponsePrefixStatus.Length..]);
                     }
                     else if (data.StartsWith(Constants.ResponsePrefixSettings))
                     {
-                        SettingsUpdated?.Invoke(DeviceId, data[Constants.ResponsePrefixSettings.Length..]);
-                    }
-                    else if (data.StartsWith(Constants.ResponsePrefixHandShake))
-                    {
-                        var val = data[Constants.ResponsePrefixHandShake.Length..];
-                        DeviceId = val;
+                        // Process Commands
+                        SettingsUpdated?.Invoke(DeviceName, data[Constants.ResponsePrefixSettings.Length..]);
                     }
                 }
             });
@@ -77,8 +74,15 @@ namespace FanController
             Listening = false;
         }
 
-#warning need proper implementation
+#warning need proper implementation and to process the data recived from each command
         public void SetNewCurve(string data)
+        {
+            throw new NotImplementedException();
+
+            SerialPort.WriteLine("NewData");
+        }
+
+        public void GetCurrentCurve()
         {
             throw new NotImplementedException();
 
@@ -88,6 +92,11 @@ namespace FanController
         public void SetName(string newName)
         {
             SerialPort.WriteLine($"Name{newName}");
+        }
+
+        public void GetName(string newName)
+        {
+            SerialPort.WriteLine($"Name?");
         }
     }
 }

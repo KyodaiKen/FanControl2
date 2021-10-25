@@ -18,8 +18,8 @@ namespace FanController
                 {
                     currentPort.Open();
 
-                    currentPort.WriteTimeout = Constants.Timeout;
-                    currentPort.ReadTimeout = Constants.Timeout;
+                    currentPort.WriteTimeout = Timeout.Infinite;
+                    currentPort.ReadTimeout = Timeout.Infinite;
 
                     currentPort.NewLine = Constants.NewLineOverride;
 
@@ -36,6 +36,8 @@ namespace FanController
                             }
                         }
                     });
+
+                    getDevice.Start();
 
                     if (await Task.WhenAny(getDevice, Task.Delay(Constants.Timeout)) != getDevice)
                     {
@@ -65,6 +67,8 @@ namespace FanController
                         }
                     });
 
+                    getWho.Start();
+
                     if (await Task.WhenAny(getWho, Task.Delay(Constants.Timeout)) != getWho)
                     {
                         // timeout logic
@@ -72,9 +76,9 @@ namespace FanController
                         continue;
                     }
 
-                    var deviceId = await getWho;
+                    var deviceName = await getWho;
 
-                    controllers.Add(new Controller(currentPort, deviceId));
+                    controllers.Add(new Controller(currentPort, deviceName));
                 }
                 catch (Exception ex)
                 {
