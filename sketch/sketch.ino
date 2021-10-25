@@ -719,11 +719,7 @@ void loop()
         case RQST_SET_ID:
 
             timestamp = millis();
-            while (Serial.available() != 1 && millis() - timestamp < RXTX_TIMEOUT)
-            {
-                doFanControl();
-                i++;
-            }
+            while (Serial.available() != 1 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             if (Serial.available() == 1)
             {
@@ -861,25 +857,33 @@ void loop()
                 timestamp = millis();
                 while (Serial.available() != (sc_data_len + 1) * CURVE_FIELD_LEN && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
  
-                if (rqst_id > N_CURVES && sc_data_len > CURVE_UB)
+                if (Serial.available() != (sc_data_len + 1) * CURVE_FIELD_LEN)
                 {
                     Serial.write(RESP_ERR);
-                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                    Serial.write(ERR_TIMEOUT);
                 }
                 else
                 {
-                    //Read the data and store it in our memory array
-                    for(i = 0; i < sc_data_len; i++) {
-                        float s_temp = Serial.parseFloat();
-                        unsigned char s_dc = Serial.read();
-                        if(s_dc > 100) s_dc = 100;
-                        cdta[rqst_id][i].temp = s_temp;
-                        cdta[rqst_id][i].dc = s_dc;
+                    if (rqst_id > N_CURVES && sc_data_len > CURVE_UB)
+                    {
+                        Serial.write(RESP_ERR);
+                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
                     }
+                    else
+                    {
+                        //Read the data and store it in our memory array
+                        for(i = 0; i < sc_data_len; i++) {
+                            float s_temp = Serial.parseFloat();
+                            unsigned char s_dc = Serial.read();
+                            if(s_dc > 100) s_dc = 100;
+                            cdta[rqst_id][i].temp = s_temp;
+                            cdta[rqst_id][i].dc = s_dc;
+                        }
 
-                    cdtal[rqst_id] = sc_data_len; //Store length
+                        cdtal[rqst_id] = sc_data_len; //Store length
 
-                    Serial.write(RESP_OK);
+                        Serial.write(RESP_OK);
+                    }
                 }
             }
             else
@@ -905,19 +909,27 @@ void loop()
                 timestamp = millis();
                 while (Serial.available() != 12 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-                if (rqst_id > N_CURVES)
+                if(Serial.available() != 12)
                 {
                     Serial.write(RESP_ERR);
-                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                    Serial.write(ERR_TIMEOUT);
                 }
                 else
                 {
-                    //Read the data and store it in our memory array
-                    for(i = 0; i < 3; i++) {
-                        m[rqst_id][i] = Serial.parseFloat();
+                    if (rqst_id > N_CURVES)
+                    {
+                        Serial.write(RESP_ERR);
+                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
                     }
+                    else
+                    {
+                        //Read the data and store it in our memory array
+                        for(i = 0; i < 3; i++) {
+                            m[rqst_id][i] = Serial.parseFloat();
+                        }
 
-                    Serial.write(RESP_OK);
+                        Serial.write(RESP_OK);
+                    }
                 }
             }
             else
@@ -934,8 +946,16 @@ void loop()
             timestamp = millis();
             while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            for(i = 0; i < N_SENSORS; i++) thsRpd[i] = Serial.parseFloat();
-            Serial.write(RESP_OK);
+            if(Serial.available() != N_SENSORS * 4)
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
+            }
+            else
+            {
+                for(i = 0; i < N_SENSORS; i++) thsRpd[i] = Serial.parseFloat();
+                Serial.write(RESP_OK);
+            }
 
             break;
 
@@ -945,8 +965,16 @@ void loop()
             timestamp = millis();
             while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            for(i = 0; i < N_SENSORS; i++) thsco[i] = Serial.parseFloat();
-            Serial.write(RESP_OK);
+            if(Serial.available() != N_SENSORS * 4)
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
+            }
+            else
+            {
+                for(i = 0; i < N_SENSORS; i++) thsco[i] = Serial.parseFloat();
+                Serial.write(RESP_OK);
+            }
 
             break;
 
@@ -956,12 +984,20 @@ void loop()
             timestamp = millis();
             while (Serial.available() != N_SENSORS * 12 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            for(i = 0; i < N_SENSORS; i++) {
-                thscs[i][0] = Serial.parseFloat();
-                thscs[i][1] = Serial.parseFloat();
-                thscs[i][2] = Serial.parseFloat();
+            if(Serial.available() != N_SENSORS * 12)
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
             }
-            Serial.write(RESP_OK);
+            else
+            {
+                for(i = 0; i < N_SENSORS; i++) {
+                    thscs[i][0] = Serial.parseFloat();
+                    thscs[i][1] = Serial.parseFloat();
+                    thscs[i][2] = Serial.parseFloat();
+                }
+                Serial.write(RESP_OK);
+            }
 
             break;
 
@@ -971,9 +1007,17 @@ void loop()
             timestamp = millis();
             while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            for(i = 0; i < N_SENSORS; i++) thsp[i] = Serial.read();
-            for(i = 0; i < N_SENSORS; i++) cpp[i] = Serial.read();
-            Serial.write(RESP_OK);
+            if(Serial.available() != N_SENSORS * 4)
+            {
+                Serial.write(RESP_ERR);
+                Serial.write(ERR_TIMEOUT);
+            }
+            else
+            {
+                for(i = 0; i < N_SENSORS; i++) thsp[i] = Serial.read();
+                for(i = 0; i < N_SENSORS; i++) cpp[i] = Serial.read();
+                Serial.write(RESP_OK);
+            }
 
             break;
     }
