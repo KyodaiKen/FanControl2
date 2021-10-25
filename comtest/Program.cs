@@ -12,11 +12,11 @@ namespace comtest
         {
             controllers = await ControllerFactory.GetCompatibleDevicesAsync();
 
-            foreach (var device in controllers)
+            foreach (var controller in controllers)
             {
-                device.StatusUpdated += Controller_StatusUpdated;
-                device.SettingsUpdated += Device_SettingsUpdated;
-                device.StartListening();
+                controller.StatusUpdated += Controller_StatusUpdated;
+                controller.SettingsUpdated += Controller_SettingsUpdated;
+                controller.StartListening();
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;
@@ -24,7 +24,7 @@ namespace comtest
             await Task.Delay(-1);
         }
 
-        private static void Device_SettingsUpdated(string DeviceId, string Data)
+        private static void Controller_SettingsUpdated(string DeviceId, string Data)
         {
             Console.WriteLine($"Settings Updated For => '{DeviceId}' => '{Data}'");
         }
