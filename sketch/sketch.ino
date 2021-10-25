@@ -447,6 +447,12 @@ void setDutyCycles()
     }
     delay(10);
 }
+
+void doFanControl() {
+    getTemperatures();
+    setDutyCycles();
+}
+
 #pragma endregion HELPERS
 
 #pragma region SERIAL_TOOLS
@@ -662,9 +668,9 @@ void loop()
     unsigned char i;
     unsigned char request = 0x00;
     unsigned char rqst_id;
+    long timestamp = 0;
 
-    getTemperatures();
-    setDutyCycles();
+    doFanControl();
 
     //Watch for serial commands
     if (Serial.available() == 0)
@@ -712,9 +718,10 @@ void loop()
 
         case RQST_SET_ID:
 
-            while (Serial.available() != 1 && i < RXTX_TIMEOUT)
+            timestamp = millis();
+            while (Serial.available() != 1 && millis() - timestamp < RXTX_TIMEOUT)
             {
-                delay(1);
+                doFanControl();
                 i++;
             }
 
@@ -773,11 +780,8 @@ void loop()
 
         case RQST_GET_CURVE:
 
-            while (Serial.available() != 1 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() != 1 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             if (Serial.available() == 1)
             {
@@ -814,12 +818,8 @@ void loop()
         case RQST_GET_MATRIX:
 
             //Wait for a byte that indicates the curve number
-            i = 0;
-            while (Serial.available() != 1 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() != 1 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             if (Serial.available() == 1)
             {
@@ -849,26 +849,18 @@ void loop()
         case RQST_SET_CURVE:
 
             //Wait for 2 bytes. One for the curve ID and one for the length.
-            i = 0;
-            while (Serial.available() > 2 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() < 2 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            if (Serial.available() > 2)
+            if (Serial.available() < 2)
             {
                 rqst_id = Serial.read(); //Read curve id to be updaterd
                 unsigned char sc_data_len = Serial.read(); //Read number of curve points
 
                 //Wait for the rest of the data if it wasn't transmitted already. 
-                i = 0;
-                while (Serial.available() == (sc_data_len + 1) * CURVE_FIELD_LEN && i < RXTX_TIMEOUT)
-                {
-                    delay(1);
-                    i++;
-                }
-
+                timestamp = millis();
+                while (Serial.available() != (sc_data_len + 1) * CURVE_FIELD_LEN && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
+ 
                 if (rqst_id > N_CURVES && sc_data_len > CURVE_UB)
                 {
                     Serial.write(RESP_ERR);
@@ -901,12 +893,8 @@ void loop()
         case RQST_SET_MATRIX:
 
             //Wait for the curve ID for the matrix
-            i = 0;
-            while (Serial.available() > 1 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() > 1 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             if (Serial.available() > 1)
             {
@@ -914,12 +902,8 @@ void loop()
                 unsigned char sc_data_len = Serial.read(); //Read number of curve points
 
                 //Wait for the rest of the data if it wasn't transmitted already. 
-                i = 0;
-                while (Serial.available() == 12 && i < RXTX_TIMEOUT)
-                {
-                    delay(1);
-                    i++;
-                }
+                timestamp = millis();
+                while (Serial.available() != 12 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
                 if (rqst_id > N_CURVES)
                 {
@@ -947,12 +931,8 @@ void loop()
         case RQST_SET_CAL_RESISTRS:
 
             //Wait for the data
-            i = 0;
-            while (Serial.available() == N_SENSORS * 4 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             for(i = 0; i < N_SENSORS; i++) thsRpd[i] = Serial.parseFloat();
             Serial.write(RESP_OK);
@@ -962,12 +942,8 @@ void loop()
         case RQST_SET_CAL_OFFSETS:
 
             //Wait for the data
-            i = 0;
-            while (Serial.available() == N_SENSORS * 4 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             for(i = 0; i < N_SENSORS; i++) thsco[i] = Serial.parseFloat();
             Serial.write(RESP_OK);
@@ -977,12 +953,8 @@ void loop()
         case RQST_SET_CAL_SH_COEFFS:
 
             //Wait for the data
-            i = 0;
-            while (Serial.available() == N_SENSORS * 12 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() != N_SENSORS * 12 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             for(i = 0; i < N_SENSORS; i++) {
                 thscs[i][0] = Serial.parseFloat();
@@ -996,12 +968,8 @@ void loop()
         case RQST_SET_PINS:
 
             //Wait for the data
-            i = 0;
-            while (Serial.available() == N_SENSORS * 4 && i < RXTX_TIMEOUT)
-            {
-                delay(1);
-                i++;
-            }
+            timestamp = millis();
+            while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             for(i = 0; i < N_SENSORS; i++) thsp[i] = Serial.read();
             for(i = 0; i < N_SENSORS; i++) cpp[i] = Serial.read();
