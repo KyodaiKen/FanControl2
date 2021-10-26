@@ -54,7 +54,7 @@
 #define N_SENSORS 3
 #define N_CURVES 3
 #define N_TEMP_PROBE_TESTS 1
-#define N_RAVG 32
+#define N_RAVG 67 //memory hog!!!
 
 //Curve data layout
 #define CURVE_UB 12
@@ -375,7 +375,13 @@ void getTemperatures()
              t[s] += tr[s][i];
         }
         t[s] /= N_RAVG;
+        #ifdef DEBUG
+        Serial.print(t[s]); Serial.print(" ");
+        #endif
     }
+    #ifdef DEBUG
+    Serial.println();
+    #endif
 
     //Update pointer position
     tp++; if(tp == N_RAVG) tp = 0;
