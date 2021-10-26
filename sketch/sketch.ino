@@ -77,7 +77,7 @@
 
 #pragma region WORKING_VARIABLES
 //Thermistor (analog) pins
-int thsp[N_SENSORS];
+unsigned char thsp[N_SENSORS];
 
 //Thermistor calibration (°K/C)
 float thsco[N_SENSORS];
@@ -89,8 +89,7 @@ float thscs[N_SENSORS][3];
 float thsRpd[N_SENSORS];
 
 //PWM Curve pin mapping
-//You should not change these!
-int cpp[N_CURVES];
+unsigned char cpp[N_CURVES];
 
 //Memorized temperatures
 float tr[N_SENSORS][N_RAVG]; //Readings
@@ -229,9 +228,9 @@ void readThermostatCalibration() {
         EEPROM.get(EEPROM_CAL_RESIS_OFFSET + i * 4, thsRpd[i]); //Read resistor values
         EEPROM.get(EEPROM_CAL_OFFST_OFFSET + i * 4, thsco[i]); //Read callibtration offsets
         
-        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 4, thscs[i][0]); //Read Steinhart-Hart coefficients
-        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 4 + 4, thscs[i][1]); //Read Steinhart-Hart coefficients
-        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 4 + 8, thscs[i][2]); //Read Steinhart-Hart coefficients
+        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 12, thscs[i][0]); //Read Steinhart-Hart coefficients
+        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 12 + 4, thscs[i][1]); //Read Steinhart-Hart coefficients
+        EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 12 + 8, thscs[i][2]); //Read Steinhart-Hart coefficients
     }
 }
 
@@ -242,9 +241,9 @@ void writeThermostatCalibration() {
         EEPROM.put(EEPROM_CAL_RESIS_OFFSET + i * 4, thsRpd[i]); //Write resistor values
         EEPROM.put(EEPROM_CAL_OFFST_OFFSET + i * 4, thsco[i]); //Write callibtration offsets
 
-        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 4, thscs[i][0]); //Write Steinhart-Hart coefficients
-        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 4 + 4, thscs[i][1]); //Write Steinhart-Hart coefficients
-        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 4 + 8, thscs[i][2]); //Write Steinhart-Hart coefficients
+        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 12, thscs[i][0]); //Write Steinhart-Hart coefficients
+        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 12 + 4, thscs[i][1]); //Write Steinhart-Hart coefficients
+        EEPROM.put(EEPROM_CAL_COEFF_OFFSET + i * 12 + 8, thscs[i][2]); //Write Steinhart-Hart coefficients
     }
 }
 
@@ -261,7 +260,7 @@ void readPinConfig()
     //Read PWM channel pins
     for(i = 0; i < N_SENSORS; i++)
     {
-        EEPROM.get(EEPROM_PINS_OFFSET + i, cpp[i]);
+        EEPROM.get(EEPROM_PINS_OFFSET + i + 3, cpp[i]);
     }
 }
 
@@ -278,7 +277,7 @@ void writePinConfig()
     //Read PWM channel pins
     for(i = 0; i < N_SENSORS; i++)
     {
-        EEPROM.put(EEPROM_PINS_OFFSET + i, cpp[i]);
+        EEPROM.put(EEPROM_PINS_OFFSET + i + 3, cpp[i]);
     }
 }
 
@@ -376,11 +375,11 @@ void getTemperatures()
         }
         t[s] /= N_RAVG;
         #ifdef DEBUG
-        Serial.print(t[s]); Serial.print(" ");
+        //Serial.print(t[s]); Serial.print(" ");
         #endif
     }
     #ifdef DEBUG
-    Serial.println();
+    //Serial.println();
     #endif
 
     //Update pointer position
@@ -443,24 +442,31 @@ float getDutyCycle(unsigned int c, float mt)
 
 float matrix(unsigned int c, float *temps)
 {
-    return 22; //DEBUG!!
     float mt = 0;
-    for (unsigned int s = 0; s < N_SENSORS; s++) mt += temps[s] * m[c][s];
+    for (unsigned int s = 0; s < N_SENSORS; s++) {
+        mt += temps[s] * m[c][s];
+    }
     return mt;
 }
 
 //This function sets the actual duty cycle you programmed.
 void setDutyCycles()
 {
+    #ifdef DEBUG
+    Serial.print(t[0]); Serial.print(" "); Serial.print(t[1]); Serial.print(" "); Serial.print(t[2]);
+    #endif
     for (unsigned int c = 0; c < N_CURVES; c++)
     {
         ct[c] = matrix(c, t);
         cdc[c] = getDutyCycle(c, ct[c]);
         #ifdef DEBUG
-        Serial.print("{'c': "); Serial.print(c); Serial.print(", 'mt': "); Serial.print(ct[c]); Serial.print(", 'dc': "); Serial.print(cdc[c]); Serial.print("},");
+        Serial.print(" {'c': "); Serial.print(c); Serial.print(", 'mt': "); Serial.print(ct[c]); Serial.print(", 'dc': "); Serial.print(cdc[c]); Serial.print("},");
         #endif
         setPulseWith(cpp[c], cdc[c]);
     }
+    #ifdef DEBUG
+    Serial.println();
+    #endif
     delay(10);
 }
 
@@ -681,8 +687,8 @@ void setup()
         m[1][1] = 1;
         m[1][2] = 0;
 
-        m[2][0] = .5;
-        m[2][1] = .5;
+        m[2][0] = 0.5;
+        m[2][1] = 0.5;
         m[2][2] = -1;
 
         #pragma endregion CURVES_AND_MATRIX
@@ -693,6 +699,13 @@ void setup()
         writeCurves();
         writeMatrix();
         writeEEPROM_CRC();
+
+        #ifdef DEBUG
+        readPinConfig();
+        readThermostatCalibration();
+        readCurves();
+        readMatrix();
+        #endif
 
         Serial.write(ERR_EEPROM);
         is_eeprom_ok = true;
