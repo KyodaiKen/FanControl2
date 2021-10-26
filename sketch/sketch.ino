@@ -510,17 +510,17 @@ unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
 }
 
 void say_hello() {
-    Serial.print(IDMSG); Serial.print(" "); Serial.println((unsigned char)EEPROM.read(EEPROM_ID_OFFSET));
+    Serial.print(IDMSG); Serial.write((unsigned char)EEPROM.read(EEPROM_ID_OFFSET));
 }
 
 void sendError(unsigned char err_code, unsigned char resp_code) {
-    Serial.write(RESP_ERR);
+    Serial.write((unsigned char)RESP_ERR);
     Serial.write(resp_code);
     Serial.write(err_code);
 }
 
 void sendOK(unsigned char resp_code) {
-    Serial.write(RESP_OK);
+    Serial.write((unsigned char)RESP_OK);
     Serial.write(resp_code);
 }
 
@@ -746,8 +746,8 @@ void loop()
         case RQST_CAPABILITIES:
 
             sendOK(request);
-            Serial.write(N_SENSORS);
-            Serial.write(N_CURVES);
+            Serial.write((unsigned char)N_SENSORS);
+            Serial.write((unsigned char)N_CURVES);
 
             break;
         case RQST_GET_SENSORS:
