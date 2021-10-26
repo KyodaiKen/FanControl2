@@ -1,0 +1,137 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "FanController/1.0.0": {
+        "dependencies": {
+          "System.IO.Ports": "6.0.0-rc.2.21480.5"
+        },
+        "runtime": {
+          "FanController.dll": {}
+        }
+      },
+      "runtime.linux-arm.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+        "runtimeTargets": {
+          "runtimes/linux-arm/native/libSystem.IO.Ports.Native.so": {
+            "rid": "linux-arm",
+            "assetType": "native",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "runtime.linux-arm64.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+        "runtimeTargets": {
+          "runtimes/linux-arm64/native/libSystem.IO.Ports.Native.so": {
+            "rid": "linux-arm64",
+            "assetType": "native",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "runtime.linux-x64.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+        "runtimeTargets": {
+          "runtimes/linux-x64/native/libSystem.IO.Ports.Native.so": {
+            "rid": "linux-x64",
+            "assetType": "native",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+        "dependencies": {
+          "runtime.linux-arm.runtime.native.System.IO.Ports": "6.0.0-rc.2.21480.5",
+          "runtime.linux-arm64.runtime.native.System.IO.Ports": "6.0.0-rc.2.21480.5",
+          "runtime.linux-x64.runtime.native.System.IO.Ports": "6.0.0-rc.2.21480.5",
+          "runtime.osx-x64.runtime.native.System.IO.Ports": "6.0.0-rc.2.21480.5"
+        }
+      },
+      "runtime.osx-x64.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+        "runtimeTargets": {
+          "runtimes/osx-x64/native/libSystem.IO.Ports.Native.dylib": {
+            "rid": "osx-x64",
+            "assetType": "native",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "System.IO.Ports/6.0.0-rc.2.21480.5": {
+        "dependencies": {
+          "runtime.native.System.IO.Ports": "6.0.0-rc.2.21480.5"
+        },
+        "runtime": {
+          "lib/net6.0/System.IO.Ports.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.48005"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/unix/lib/net6.0/System.IO.Ports.dll": {
+            "rid": "unix",
+            "assetType": "runtime",
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.48005"
+          },
+          "runtimes/win/lib/net6.0/System.IO.Ports.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.48005"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "FanController/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "runtime.linux-arm.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-4+OsMEJmntunBMpC4DRuGowwQ5sjXk7LY/2pcSQNSEzXLFJVmv2V15zuaDimmeTdBpKCJv1E6K+qg3jVRnzcXw==",
+      "path": "runtime.linux-arm.runtime.native.system.io.ports/6.0.0-rc.2.21480.5",
+      "hashPath": "runtime.linux-arm.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+    },
+    "runtime.linux-arm64.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-vPBc/OSiTUYdq3NS9aSnt7qMQwCy/CrzL9z5cEbfP6mfV+baoRkn2cZdV+u5oqS8hDiqvk5tTfZtOaIdFeK3MA==",
+      "path": "runtime.linux-arm64.runtime.native.system.io.ports/6.0.0-rc.2.21480.5",
+      "hashPath": "runtime.linux-arm64.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+    },
+    "runtime.linux-x64.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-+nHA0qzXwC6WKfTF7s0DUsIdicp3sctTa49xWkS7AP7r9THo6J6fCsqiWfcVvkOhTutr2cEZF/Ml/vvBlMdZRg==",
+      "path": "runtime.linux-x64.runtime.native.system.io.ports/6.0.0-rc.2.21480.5",
+      "hashPath": "runtime.linux-x64.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+    },
+    "runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-amki0b6E+mFusCM9S8F4XIfHrb2tmg2kv43aVo0SU0uFIt55YU7bSE9kaaY+IkIeShgLG3tuKG78DiDXhrMOzw==",
+      "path": "runtime.native.system.io.ports/6.0.0-rc.2.21480.5",
+      "hashPath": "runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+    },
+    "runtime.osx-x64.runtime.native.System.IO.Ports/6.0.0-rc.2.21480.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-19SKzSHK1J0cJj+HE1dZq98FZL3JJdpSbeV499tCkLW02DHHeGl/3nazg+yxq4opGY83ckx6Qla/As+z8Ob/AA==",
+      "path": "runtime.osx-x64.runtime.native.system.io.ports/6.0.0-rc.2.21480.5",
+      "hashPath": "runtime.osx-x64.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+    },
+    "System.IO.Ports/6.0.0-rc.2.21480.5": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-htgl5qerh3AgY6GHmkSJde60zGXypqCTuSFhQ4KJwRUfMKJ7nCVV8YVJO9NzQSF4sJ9Tdlr1pRwbLSG6qbHfTA==",
+      "path": "system.io.ports/6.0.0-rc.2.21480.5",
+      "hashPath": "system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+    }
+  }
+}

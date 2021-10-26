@@ -1,0 +1,13 @@
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.GlobalUsings.g.cs
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.GeneratedMSBuildEditorConfig.editorconfig
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.AssemblyInfoInputs.cache
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.AssemblyInfo.cs
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.csproj.CoreCompileInputs.cache
+D:\Daten\GIT\FanControl2Test\comtest\FanController\bin\Debug\net6.0\FanController.deps.json
+D:\Daten\GIT\FanControl2Test\comtest\FanController\bin\Debug\net6.0\FanController.dll
+D:\Daten\GIT\FanControl2Test\comtest\FanController\bin\Debug\net6.0\ref\FanController.dll
+D:\Daten\GIT\FanControl2Test\comtest\FanController\bin\Debug\net6.0\FanController.pdb
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.dll
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\ref\FanController.dll
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.pdb
+D:\Daten\GIT\FanControl2Test\comtest\FanController\obj\Debug\net6.0\FanController.csproj.AssemblyReference.cache

@@ -1,0 +1,16 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "0abd17f5-5ae1-45fb-9514-7caf4e8c030e": {
+      "ProjectGuid": "0abd17f5-5ae1-45fb-9514-7caf4e8c030e",
+      "DisplayName": "comtest",
+      "ColorIndex": 0
+    },
+    "f85324b5-79dd-41fb-a355-36770399412a": {
+      "ProjectGuid": "f85324b5-79dd-41fb-a355-36770399412a",
+      "DisplayName": "FanController",
+      "ColorIndex": 1
+    }
+  },
+  "NextColorIndex": 2
+}

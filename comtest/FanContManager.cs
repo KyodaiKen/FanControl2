@@ -88,6 +88,32 @@ namespace comtest
                 throw new OperationCanceledException("Not a fan controller!");
             }
         }
+
+        public string getIdent()
+        {
+            if (_port.IsOpen)
+            {
+                byte[] rqst = new byte[1];
+                rqst[0] = RQST_IDENTIFY;
+                _port.Write(rqst);
+
+                uint l = 0;
+                while (_port.BytesToRead == 0)
+                {
+                    Thread.Sleep(10);
+                    l++;
+                    if (l == timeout)
+                    {
+                        throw new OperationCanceledException("Timeout");
+                    }
+                }
+
+                return _port.ReadExisting();
+            } else
+            {
+                return "";
+            }
+        }
     }
 
     public class FanContManager
@@ -115,6 +141,8 @@ namespace comtest
                 }
             }
             Console.WriteLine($"--> Gathered {_controllers.Count} KyoudaiKen FanControl NextGen controller" + (_controllers.Count != 1 ? "s!" : "!"));
+
+            Console.WriteLine(_controllers[1].getIdent());
         }
     }
 }

@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "dgSpecHash": "gmsZOwsEwAmUhplFxlgNMRLqENXLbj1okWdDcUfF3WCfJ91fnrM3v8GAW4eC+cLrgRBJ9Qi3aOatmYHDty060Q==",
+  "success": true,
+  "projectFilePath": "D:\\Daten\\GIT\\FanControl2Test\\comtest\\FanController\\FanController.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\blood\\.nuget\\packages\\runtime.linux-arm.runtime.native.system.io.ports\\6.0.0-rc.2.21480.5\\runtime.linux-arm.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512",
+    "C:\\Users\\blood\\.nuget\\packages\\runtime.linux-arm64.runtime.native.system.io.ports\\6.0.0-rc.2.21480.5\\runtime.linux-arm64.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512",
+    "C:\\Users\\blood\\.nuget\\packages\\runtime.linux-x64.runtime.native.system.io.ports\\6.0.0-rc.2.21480.5\\runtime.linux-x64.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512",
+    "C:\\Users\\blood\\.nuget\\packages\\runtime.native.system.io.ports\\6.0.0-rc.2.21480.5\\runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512",
+    "C:\\Users\\blood\\.nuget\\packages\\runtime.osx-x64.runtime.native.system.io.ports\\6.0.0-rc.2.21480.5\\runtime.osx-x64.runtime.native.system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512",
+    "C:\\Users\\blood\\.nuget\\packages\\system.io.ports\\6.0.0-rc.2.21480.5\\system.io.ports.6.0.0-rc.2.21480.5.nupkg.sha512"
+  ],
+  "logs": []
+}
