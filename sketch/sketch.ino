@@ -407,13 +407,11 @@ void setPulseWith(int pin, float pv)
 float getDutyCycle(unsigned int c, float mt)
 {
     bool found = false;
-    byte p0 = 0;
-    byte p1 = 0;
-    float dc;
-    if (mt == 0)
-        return cdta[c][0].dc;
+    int p0 = 0;
+    int p1 = 0;
 
-    for (byte i = 0; i < cdtal[c]; i++)
+    //Find the lowest curve point for our matrix value
+    for (int i = 0; i < cdtal[c]; i++)
     {
         if (cdta[c][i].temp >= mt)
         {
@@ -422,24 +420,33 @@ float getDutyCycle(unsigned int c, float mt)
             break;
         }
     }
-    if (found && p0 + 1 <= cdtal[c])
+
+    //Serial.println(cdta[c][0].dc);
+
+    //In case the curve doesn't start with temp 0 or the temperature is below the minimum curve point, return lowest duty cycle
+    if(p0 < 0) return cdta[c][0].dc;
+
+
+    if (found && p0 + 1 < cdtal[c])
     {
+        //Interpolate between points
         p1 = p0 + 1;
-        dc = ((mt - cdta[c][p0].temp) * (cdta[c][p1].dc - cdta[c][p0].dc) / (cdta[c][p1].temp - cdta[c][p0].temp)) + cdta[c][p0].dc;
+        float interpolated = ((mt - cdta[c][p0].temp) * (cdta[c][p1].dc - cdta[c][p0].dc) / (cdta[c][p1].temp - cdta[c][p0].temp)) + cdta[c][p0].dc;
+        return (interpolated < 0) ? 0 : interpolated;
     }
     else
     {
-        dc = 100;
+        //We overshot the last curve point, return the highest duty cycle in the curve
+        return cdta[c][cdtal[c] - 1].dc;
     }
-    return dc < 0 ? 0 : dc;
 }
 
 float matrix(unsigned int c, float *temps)
 {
+    return 22; //DEBUG!!
     float mt = 0;
-    for (unsigned int s = 0; s < N_SENSORS; s++)
-        mt += temps[s] * m[c][s];
-    return (mt < 0 ? 0 : mt);
+    for (unsigned int s = 0; s < N_SENSORS; s++) mt += temps[s] * m[c][s];
+    return mt;
 }
 
 //This function sets the actual duty cycle you programmed.
@@ -449,6 +456,9 @@ void setDutyCycles()
     {
         ct[c] = matrix(c, t);
         cdc[c] = getDutyCycle(c, ct[c]);
+        #ifdef DEBUG
+        Serial.print("{'c': "); Serial.print(c); Serial.print(", 'mt': "); Serial.print(ct[c]); Serial.print(", 'dc': "); Serial.print(cdc[c]); Serial.print("},");
+        #endif
         setPulseWith(cpp[c], cdc[c]);
     }
     delay(10);
@@ -522,6 +532,31 @@ void setup()
     
     Serial.begin(SERIAL_BAUDRATE);
 
+    #pragma region CONFIG_TIMERS_AND_PWM
+    // Configure Timer 1 for PWM @ 25 kHz.
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCNT1 = 0;
+    TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM11);
+    TCCR1B = _BV(WGM13) | _BV(CS10);
+    ICR1 = 160;
+
+    // Configure Timer 2 for PWM @ 25 kHz.
+    TCCR2A = 0;
+    TCCR2B = 0;
+    TCNT2 = 0;
+    TCCR2A = _BV(COM2B1) | _BV(WGM20);
+    TCCR2B = _BV(WGM22) | _BV(CS20);
+    OCR2A = 160;
+
+    //Set pins up for output
+    for (i = 0; i < N_CURVES; i++)
+    {
+        pinMode(cpp[i], OUTPUT);
+        setPulseWith(cpp[i], 100);
+    }
+    #pragma endregion CONFIG_TIMERS_AND_PWM
+
     #pragma region READ_EEPROM
     //Zero curve and matrix memory
     for (unsigned int c = 0; c < N_CURVES; c++)
@@ -593,8 +628,11 @@ void setup()
 
         #pragma region CURVES_AND_MATRIX
         //Set up default curves and matrix just ti get things going
+        
+        /*
         for (unsigned char c = 0; c < N_CURVES; c++)
         {
+            
             //Set curve array length accordingly to the points we add
             cdtal[c] = 2;
             //Create a linear curve between 0°C ≙ 0% and 100°C ≙ 100%
@@ -602,6 +640,7 @@ void setup()
             cdta[c][0].dc = 33;
             cdta[c][1].temp = 100;
             cdta[c][1].dc = 33;
+            
 
             //Set up a simple channel = output matrix
             for (unsigned char s = 0; s < N_SENSORS; s++)
@@ -609,10 +648,44 @@ void setup()
                 m[c][s] = 1;
             }
         }
-        #pragma endregion CURVES_AND_MATRIX
+        */
 
-        //Zero EEPROM
-        for(i = 0; i < 512; i++) EEPROM.write(i, 0);
+        /* Kyo specific */
+        cdtal[0] = 4;
+        cdta[0][0].temp = 2;
+        cdta[0][0].dc = 15;
+        cdta[0][1].temp = 3;
+        cdta[0][1].dc = 18;
+        cdta[0][2].temp = 6;
+        cdta[0][2].dc = 33;
+        cdta[0][3].temp = 20;
+        cdta[0][3].dc = 100;
+
+        cdtal[1] = 1;
+        cdta[1][0].temp = 0;
+        cdta[1][0].dc = 33;
+
+        cdtal[2] = 3;
+        cdta[2][0].temp = 0;
+        cdta[2][0].dc = 24;
+        cdta[2][1].temp = 3;
+        cdta[2][1].dc = 33;
+        cdta[2][2].temp = 12;
+        cdta[2][2].dc = 100;
+
+        m[0][0] = 1;
+        m[0][1] = 0;
+        m[0][2] = -1;
+
+        m[1][0] = 0;
+        m[1][1] = 1;
+        m[1][2] = 0;
+
+        m[2][0] = .5;
+        m[2][1] = .5;
+        m[2][2] = -1;
+
+        #pragma endregion CURVES_AND_MATRIX
 
         //Write to EEPROM:
         writePinConfig();
@@ -626,38 +699,13 @@ void setup()
     }
     else
     {
+        is_eeprom_ok = true;
         readPinConfig();
         readThermostatCalibration();
         readCurves();
         readMatrix();
-        is_eeprom_ok = true;
     }
     #pragma endregion READ_EEPROM
-
-    #pragma region CONFIG_TIMERS_AND_PWM
-    // Configure Timer 1 for PWM @ 25 kHz.
-    TCCR1A = 0;
-    TCCR1B = 0;
-    TCNT1 = 0;
-    TCCR1A = _BV(COM1A1) | _BV(COM1B1) | _BV(WGM11);
-    TCCR1B = _BV(WGM13) | _BV(CS10);
-    ICR1 = 160;
-
-    // Configure Timer 2 for PWM @ 25 kHz.
-    TCCR2A = 0;
-    TCCR2B = 0;
-    TCNT2 = 0;
-    TCCR2A = _BV(COM2B1) | _BV(WGM20);
-    TCCR2B = _BV(WGM22) | _BV(CS20);
-    OCR2A = 160;
-
-    //Set pins up for output
-    for (i = 0; i < N_CURVES; i++)
-    {
-        pinMode(cpp[i], OUTPUT);
-        setPulseWith(cpp[i], 100);
-    }
-    #pragma endregion CONFIG_TIMERS_AND_PWM
 
     #pragma region PREP_THERMAL_READINGS
      //Rolling average position need to start at zero
