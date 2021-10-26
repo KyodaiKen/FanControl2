@@ -465,18 +465,9 @@ void serialWriteFloat(float f)
 
 void sendSensorDataBinary()
 {
-    for (unsigned char s = 0; s < N_SENSORS; s++)
-    {
-        serialWriteFloat(t[s]);
-    }
-    for (unsigned char c = 0; c < N_CURVES; c++)
-    {
-        serialWriteFloat(ct[c]);
-    }
-    for (unsigned char c = 0; c < N_CURVES; c++)
-    {
-        serialWriteFloat(cdc[c]);
-    }
+    for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(t[s]); //Temperatures
+    for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(ct[c]); //Matrix results
+    for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(cdc[c]); //Current duty cycle
 }
 
 unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
@@ -505,6 +496,18 @@ unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
 void say_hello() {
     Serial.print(IDMSG); Serial.print(" "); Serial.println((unsigned char)EEPROM.read(EEPROM_ID_OFFSET));
 }
+
+void sendError(unsigned char err_code, unsigned char resp_code) {
+    Serial.write(RESP_ERR);
+    Serial.write(resp_code);
+    Serial.write(err_code);
+}
+
+void sendOK(unsigned char resp_code) {
+    Serial.write(RESP_OK);
+    Serial.write(resp_code);
+}
+
 #pragma endregion SERIAL_TOOLS
 
 void setup()
@@ -651,7 +654,7 @@ void setup()
     #pragma endregion CONFIG_TIMERS_AND_PWM
 
     #pragma region PREP_THERMAL_READINGS
-     //Rolling average positions need to start at zero
+     //Rolling average position need to start at zero
     tp = 0;
 
     //Set temperatures to 1000 so it is known that it's the first reading
@@ -682,21 +685,20 @@ void loop()
     {
         case RQST_IDENTIFY:
 
-            Serial.write(RESP_OK);
-            Serial.write((unsigned char)request);
+            sendOK(request);
             say_hello();
 
             break;
         case RQST_CAPABILITIES:
 
-            Serial.write(RESP_OK);
-            Serial.write((unsigned char)request);
+            sendOK(request);
             Serial.write(N_SENSORS);
             Serial.write(N_CURVES);
 
             break;
         case RQST_GET_SENSORS:
 
+            sendOK(request);
             sendSensorDataBinary();
 
             break;
@@ -706,7 +708,7 @@ void loop()
             readThermostatCalibration();
             readCurves();
             readMatrix();
-            Serial.write(RESP_OK);
+            sendOK(request);
 
             break;
         case RQST_WRITE_TO_EEPROM:
@@ -716,7 +718,7 @@ void loop()
             writeCurves();
             writeMatrix();
             writeEEPROM_CRC();
-            Serial.write(RESP_OK);
+            sendOK(request);
 
             break;
 
@@ -731,14 +733,13 @@ void loop()
                 unsigned char new_id = Serial.read();
                 EEPROM.write(EEPROM_ID_OFFSET, new_id);
                 writeEEPROM_CRC();
-                Serial.write(RESP_OK);
+                sendOK(request);
 
             }
             else
             {
 
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
 
             }
 
@@ -758,8 +759,7 @@ void loop()
 
         case RQST_GET_CAL_SH_COEFFS:
 
-            Serial.write(RESP_OK);
-            Serial.write((unsigned char)request);
+            sendOK(request);
             for(i = 0; i < N_SENSORS; i++)
             {
                 serialWriteFloat(thscs[i][0]);
@@ -771,8 +771,7 @@ void loop()
 
         case RQST_GET_PINS:
 
-            Serial.write(RESP_OK);
-            Serial.write((unsigned char)request);
+            sendOK(request);
             for(i = 0; i < N_SENSORS; i++) Serial.write(thsp[i]);
             for(i = 0; i < N_SENSORS; i++) Serial.write(cpp[i]);
 
@@ -790,13 +789,11 @@ void loop()
 
                 if(rqst_id > N_CURVES)
                 {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                    sendError(ERR_INDEX_OUT_OF_BOUNDS, request);
                 }
                 else
                 {
-                    Serial.write(RESP_OK);
-                    Serial.write((unsigned char)request);
+                    sendOK(request);
                     Serial.write(rqst_id); //Send curve ID (for the struct) (byte)
                     Serial.write(cdtal[rqst_id]); //Send length (byte)
 
@@ -809,8 +806,7 @@ void loop()
             }
             else
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
 
             break;
@@ -827,21 +823,18 @@ void loop()
 
                 if (rqst_id > N_CURVES)
                 {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                    sendError(ERR_INDEX_OUT_OF_BOUNDS, request);
                 }
                 else
                 {
-                    Serial.write(RESP_OK);
-                    Serial.write((unsigned char)request);
+                    sendOK(request);
                     Serial.write(rqst_id); //Write the requested ID for the matrix struct, length is always N_SENMSORS from capabilities
                     for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(m[rqst_id][s]);
                 }
             }
             else
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
 
             break;
@@ -863,15 +856,13 @@ void loop()
  
                 if (Serial.available() != (sc_data_len + 1) * CURVE_FIELD_LEN)
                 {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
+                    sendError(ERR_TIMEOUT, request);
                 }
                 else
                 {
                     if (rqst_id > N_CURVES && sc_data_len > CURVE_UB)
                     {
-                        Serial.write(RESP_ERR);
-                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                        sendError(ERR_INDEX_OUT_OF_BOUNDS, request);
                     }
                     else
                     {
@@ -886,14 +877,13 @@ void loop()
 
                         cdtal[rqst_id] = sc_data_len; //Store length
 
-                        Serial.write(RESP_OK);
+                        sendOK(request);
                     }
                 }
             }
             else
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
 
             break;
@@ -915,15 +905,13 @@ void loop()
 
                 if(Serial.available() != 12)
                 {
-                    Serial.write(RESP_ERR);
-                    Serial.write(ERR_TIMEOUT);
+                    sendError(ERR_TIMEOUT, request);
                 }
                 else
                 {
                     if (rqst_id > N_CURVES)
                     {
-                        Serial.write(RESP_ERR);
-                        Serial.write(ERR_INDEX_OUT_OF_BOUNDS);
+                        sendError(ERR_INDEX_OUT_OF_BOUNDS, request);
                     }
                     else
                     {
@@ -932,14 +920,13 @@ void loop()
                             m[rqst_id][i] = Serial.parseFloat();
                         }
 
-                        Serial.write(RESP_OK);
+                        sendOK(request);
                     }
                 }
             }
             else
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
 
             break;
@@ -952,13 +939,12 @@ void loop()
 
             if(Serial.available() != N_SENSORS * 4)
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
             else
             {
                 for(i = 0; i < N_SENSORS; i++) thsRpd[i] = Serial.parseFloat();
-                Serial.write(RESP_OK);
+                sendOK(request);
             }
 
             break;
@@ -971,13 +957,12 @@ void loop()
 
             if(Serial.available() != N_SENSORS * 4)
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
             else
             {
                 for(i = 0; i < N_SENSORS; i++) thsco[i] = Serial.parseFloat();
-                Serial.write(RESP_OK);
+                sendOK(request);
             }
 
             break;
@@ -990,8 +975,7 @@ void loop()
 
             if(Serial.available() != N_SENSORS * 12)
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
             else
             {
@@ -1000,7 +984,7 @@ void loop()
                     thscs[i][1] = Serial.parseFloat();
                     thscs[i][2] = Serial.parseFloat();
                 }
-                Serial.write(RESP_OK);
+                sendOK(request);
             }
 
             break;
@@ -1013,14 +997,13 @@ void loop()
 
             if(Serial.available() != N_SENSORS * 4)
             {
-                Serial.write(RESP_ERR);
-                Serial.write(ERR_TIMEOUT);
+                sendError(ERR_TIMEOUT, request);
             }
             else
             {
                 for(i = 0; i < N_SENSORS; i++) thsp[i] = Serial.read();
                 for(i = 0; i < N_SENSORS; i++) cpp[i] = Serial.read();
-                Serial.write(RESP_OK);
+                sendOK(request);
             }
 
             break;
