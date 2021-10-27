@@ -50,9 +50,14 @@ namespace FanController
                                 continue;
                             }
 
-#warning TODO: If EEPROM error occurrs, RESP_ERR+ERR_EEPROM are sent BEFORE the welcome message!
+                            int start = 0;
+                            if (buffer[0] == Protocol.Status.RESP_OK && buffer[1] == Protocol.Error.ERR_EEPROM)
+                            {
+                                start = 2;
+                                Console.WriteLine($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
+                            }
 
-                            byte[] message = buffer[0..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
+                            byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
                             if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
                             {
                                 // Incompatible device falls here

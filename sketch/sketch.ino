@@ -706,7 +706,8 @@ void setup()
         readCurves();
         readMatrix();
         #endif
-
+        
+        Serial.write(RESP_ERR);
         Serial.write(ERR_EEPROM);
         is_eeprom_ok = true;
     }
