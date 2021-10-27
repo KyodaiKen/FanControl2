@@ -81,7 +81,6 @@ namespace FanController
             }
 
             Console.WriteLine($"Gathered {controllers.Count} controller" + (controllers.Count != 1 ? "s!" : "!"));
-
             return controllers;
         }
     }

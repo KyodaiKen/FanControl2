@@ -862,7 +862,6 @@ void loop()
                 else
                 {
                     sendOK(request);
-                    Serial.write(rqst_id); //Send curve ID (for the struct) (byte)
                     Serial.write(cdtal[rqst_id]); //Send length (byte)
 
                     for(i = 0; i < cdtal[rqst_id]; i++) {
@@ -896,7 +895,6 @@ void loop()
                 else
                 {
                     sendOK(request);
-                    Serial.write(rqst_id); //Write the requested ID for the matrix struct, length is always N_SENMSORS from capabilities
                     for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(m[rqst_id][s]);
                 }
             }

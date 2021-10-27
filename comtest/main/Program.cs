@@ -16,6 +16,8 @@ namespace comtest
             {
                 controller.OnSensorsUpdate += OnSensorsUpdate;
                 controller.StartListening();
+
+                await controller.GetCurve(0);
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;

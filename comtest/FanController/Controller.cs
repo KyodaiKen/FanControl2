@@ -20,6 +20,7 @@ namespace FanController
 
         public byte DeviceID { get; private set; }
         public string DeviceName { get; set; }
+        public DeviceCapabilities DeviceCapabilities { get; private set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
@@ -102,11 +103,11 @@ namespace FanController
                     {
                         if (!CommandAnswers.ContainsKey(kind))
                         {
-                            CommandAnswers.Add(kind, readBuffer);
+                            CommandAnswers.Add(kind, readBuffer[2..readBuffer.Length]);
                         }
                         else
                         {
-                            CommandAnswers[kind] = readBuffer;
+                            CommandAnswers[kind] = readBuffer[2..readBuffer.Length];
                         }
 
                         // new data recived, send pulse so listeners can check if it's what they need
@@ -134,7 +135,10 @@ namespace FanController
         public async Task SendCommand(byte command, byte[]? payload = null)
         {
             const int maxPayloadSize = Protocol.BufferSize - 1;
-            var preparedCommand = new byte[Protocol.BufferSize];
+            int payload_len = 0;
+            if (payload != null) payload_len = payload.Length;
+
+            var preparedCommand = new byte[payload_len + 1];
             preparedCommand[0] = command;
 
             if (payload is not null)
@@ -150,17 +154,11 @@ namespace FanController
             await SerialPort.SendCommand(preparedCommand);
         }
 
-#warning needs to be tested, seriously, dont use this for now
-        public async Task SetNewCurve(Curve data)
+        private async Task GetDeviceCapabilities()
         {
-            var payload = data.ConvertToBinary();
+            const byte commandKey = Protocol.Request.RQST_CAPABILITIES;
 
-            await SendCommand(Protocol.Request.RQST_SET_CURVE, payload);
-        }
-
-        public async Task<Curve> GetCurrentCurve()
-        {
-            const byte commandKey = Protocol.Request.RQST_GET_CURVE;
+            Console.WriteLine($"Sending get capabilitie3s command to controller with the id {this.DeviceID}...");
             await SendCommand(commandKey);
 
             while (true)
@@ -169,10 +167,105 @@ namespace FanController
 
                 if (CommandAnswers.ContainsKey(commandKey))
                 {
+                    Console.WriteLine($"Received data!");
+
+                    DeviceCapabilities = new DeviceCapabilities()
+                    {
+                        NumberOfSensors = CommandAnswers[commandKey][0],
+                        NumberOfChannels = CommandAnswers[commandKey][1]
+                    };
+                }
+            }
+        }
+
+        public async Task<Curve> GetCurve(byte channelId)
+        {
+            const byte commandKey = Protocol.Request.RQST_GET_CURVE;
+            byte[] payload = new byte[1];
+            payload[0] = channelId;
+
+            Console.WriteLine($"Sending get curve command for curve ID {channelId} to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine($"Received data!");
+
                     // Convert data to curve
+                    byte len = CommandAnswers[commandKey][0];
+                    byte[] data = CommandAnswers[commandKey][1..]; //Remove the length from so we only have the curve data.
+
+                    Console.WriteLine($"Data length: {len}");
+
+                    CurvePoint[] cps = new CurvePoint[len];
+                    //Those offsets are headache to the power of 1000
+
+                    //Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < len; i++)
+                    {
+                        int di = i * 5;
+                        float temp = BitConverter.ToSingle(data[di..(di + 4)]);
+                        byte dc = data[(di+4)..(di + 5)][0];
+                        cps.Append(new CurvePoint(temp, dc));
+
+                        Console.WriteLine($"Curve point {i}: {temp} => {dc} added!");
+                    }
 
                     CommandAnswers.Remove(commandKey);
-                    return new Curve();
+                    Curve curve = new Curve();
+                    curve.ChannelId = channelId;
+                    curve.CurvePoints = cps;
+                    return curve;
+                }
+            }
+        }
+
+        public async Task<Curve> GetMatrix(byte channelId)
+        {
+            const byte commandKey = Protocol.Request.RQST_GET_MATRIX;
+            byte[] payload = new byte[1];
+            payload[0] = channelId;
+
+            Console.WriteLine($"Sending get matrix command for channel ID {channelId} to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine($"Received data!");
+
+                    // Convert data to curve
+                    byte len = CommandAnswers[commandKey][0];
+                    byte[] data = CommandAnswers[commandKey][1..]; //Remove the length from so we only have the curve data.
+
+                    Console.WriteLine($"Data length: {len}");
+
+                    CurvePoint[] cps = new CurvePoint[len];
+                    //Those offsets are headache to the power of 1000
+
+                    //Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < len; i++)
+                    {
+                        int di = i * 5;
+                        float temp = BitConverter.ToSingle(data[di..(di + 4)]);
+                        byte dc = data[(di + 4)..(di + 5)][0];
+                        cps.Append(new CurvePoint(temp, dc));
+
+                        Console.WriteLine($"Curve point {i}: {temp} => {dc} added!");
+                    }
+
+                    CommandAnswers.Remove(commandKey);
+                    Curve curve = new Curve();
+                    curve.ChannelId = channelId;
+                    curve.CurvePoints = cps;
+                    return curve;
                 }
             }
         }
