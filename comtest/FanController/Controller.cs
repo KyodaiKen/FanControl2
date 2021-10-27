@@ -65,6 +65,7 @@ namespace FanController
 
                     var data = await readTask;
 
+
                     if (data < 1)
                     {
                         OnError?.Invoke(DeviceID, "No data was read");
@@ -103,11 +104,11 @@ namespace FanController
                     {
                         if (!CommandAnswers.ContainsKey(kind))
                         {
-                            CommandAnswers.Add(kind, readBuffer[2..readBuffer.Length]);
+                            CommandAnswers.Add(kind, readBuffer[2..data]);
                         }
                         else
                         {
-                            CommandAnswers[kind] = readBuffer[2..readBuffer.Length];
+                            CommandAnswers[kind] = readBuffer[2..data];
                         }
 
                         // new data recived, send pulse so listeners can check if it's what they need
@@ -210,7 +211,7 @@ namespace FanController
                     for (int i = 0; i < len; i++)
                     {
                         int di = i * 5;
-                        float temp = BitConverter.ToSingle(data[di..(di + 4)]);
+                        float temp = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)]);
                         byte dc = data[(di+4)..(di + 5)][0];
                         cps.Append(new CurvePoint(temp, dc));
 
@@ -226,7 +227,7 @@ namespace FanController
             }
         }
 
-        public async Task<Curve> GetMatrix(byte channelId)
+        public async Task<float[]> GetMatrix(byte channelId)
         {
 
             if (DeviceCapabilities == null) throw new NotSupportedException("Device capabilities unknown at this point!");
@@ -253,24 +254,19 @@ namespace FanController
 
                     //Those offsets are headache to the power of 1000
                     //Deserializing could be made better by just using a struct array and copy the data into it...
-                    /*
-                    for (int i = 0; i < len; i++)
+
+                    float[] matrix = new float[DeviceCapabilities.NumberOfChannels];
+
+                    for (int i = 0; i < matrix.Length; i++)
                     {
-                        int di = i * 5;
-                        float temp = BitConverter.ToSingle(data[di..(di + 4)]);
-                        byte dc = data[(di + 4)..(di + 5)][0];
-                        cps.Append(new CurvePoint(temp, dc));
+                        int di = i * 4;
+                        matrix[i] = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)]);
 
-                        Console.WriteLine($"Curve point {i}: {temp} => {dc} added!");
+                        Console.Write($"{matrix[i]} ");
                     }
-                   
+                    Console.WriteLine();
 
-                    CommandAnswers.Remove(commandKey);
-                    Curve curve = new Curve();
-                    curve.ChannelId = channelId;
-                    curve.CurvePoints = cps;
-                    return curve; */
-                    return null;
+                    return matrix;
                 }
             }
         }

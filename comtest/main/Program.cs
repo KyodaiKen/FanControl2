@@ -18,6 +18,7 @@ namespace comtest
                 controller.StartListening();
 
                 await controller.GetCurve(0);
+                await controller.GetMatrix(0);
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;
