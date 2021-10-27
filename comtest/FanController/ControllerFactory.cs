@@ -57,14 +57,14 @@ namespace FanController
                                 Console.WriteLine($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
                             }
 
-                            byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start)];
+                            byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
                             if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
                             {
                                 // Incompatible device falls here
                                 continue;
                             }
 
-                            deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length];
+                            deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
 
                             controllers.Add(new Controller(currentPort, deviceId));
                             Console.WriteLine($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");
