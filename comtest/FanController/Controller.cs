@@ -227,7 +227,7 @@ namespace FanController
             }
         }
 
-        public async Task<float[]> GetMatrix(byte channelId)
+        public async Task<Matrix> GetMatrix(byte channelId)
         {
 
             if (DeviceCapabilities == null) throw new NotSupportedException("Device capabilities unknown at this point!");
@@ -252,6 +252,10 @@ namespace FanController
 
                     Console.WriteLine($"Data length: {DeviceCapabilities.NumberOfChannels} (from device capabilities), length from data: {data.Length/4}");
 
+                    if (data.Length / 4 != DeviceCapabilities.NumberOfChannels)
+                        throw new InvalidDataException("Returned data lentgh has a different length than expected according to" +
+                            "the number of channels on this controller.");
+
                     //Those offsets are headache to the power of 1000
                     //Deserializing could be made better by just using a struct array and copy the data into it...
 
@@ -266,7 +270,7 @@ namespace FanController
                     }
                     Console.WriteLine();
 
-                    return matrix;
+                    return new Matrix(channelId, matrix);
                 }
             }
         }
