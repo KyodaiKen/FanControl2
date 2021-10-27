@@ -6,10 +6,23 @@
         public byte NumberOfChannels;
     }
 
-    public class ThermalSensorCalibration
+    public class ThermalSensor
     {
-        public byte SensorId { get; set; }
-        float[] SteinhartHart { get; set; }
+        float[] CalibrationSteinhartHartCoefficients { get; set; }
+        float CalibrationOffset { get; set; }
+        float CalibrationResistorValue { get; set; }
+        byte Pin { get; set; }
+    }
+
+    public class PWMChannel
+    {
+        public byte Pin { get; set; }
+    }
+
+    public class ControllerConfig
+    {
+        public Dictionary<byte, ThermalSensor> ThermalSensors { get; set; }
+        public Dictionary<byte, PWMChannel> PWMChannels { get; set; }
     }
 
     public class Matrix
