@@ -50,7 +50,7 @@ namespace FanController
                                 continue;
                             }
 
-                            //TODO: If EEPROM error occurrs, RESP_ERR+ERR_EEPROM are sent BEFORE the welcome message!
+#warning TODO: If EEPROM error occurrs, RESP_ERR+ERR_EEPROM are sent BEFORE the welcome message!
 
                             byte[] message = buffer[0..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
                             if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
