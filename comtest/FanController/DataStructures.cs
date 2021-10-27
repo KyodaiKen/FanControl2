@@ -6,28 +6,22 @@
         public byte NumberOfChannels;
     }
 
+    public class ThermalSensorCalibration
+    {
+        public byte SensorId { get; set; }
+        float[] SteinhartHart { get; set; }
+    }
+
     public class Matrix
     {
         public byte ChannelId { get; set; }
         public float[] MatrixPoints { get; set; }
-
-        public Matrix(byte channelId, float[] matrix_points)
-        {
-            ChannelId = channelId;
-            MatrixPoints = matrix_points;
-        }
     }
 
     public class CurvePoint
     {
         public float Temperature { get; set; }
         public byte DutyCycle { get; set; }
-
-        public CurvePoint(float temp, byte dc)
-        {
-            Temperature = temp;
-            DutyCycle = dc;
-        }
     }
 
     public class Curve

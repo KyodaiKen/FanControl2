@@ -213,16 +213,21 @@ namespace FanController
                         int di = i * 5;
                         float temp = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)]);
                         byte dc = data[(di+4)..(di + 5)][0];
-                        cps.Append(new CurvePoint(temp, dc));
+                        cps.Append(new CurvePoint()
+                        {
+                            Temperature = temp,
+                            DutyCycle = dc
+                        });
 
                         Console.WriteLine($"Curve point {i}: {temp} => {dc} added!");
                     }
 
                     CommandAnswers.Remove(commandKey);
-                    Curve curve = new Curve();
-                    curve.ChannelId = channelId;
-                    curve.CurvePoints = cps;
-                    return curve;
+                    return new Curve()
+                    {
+                        ChannelId = channelId,
+                        CurvePoints = cps
+                    };
                 }
             }
         }
@@ -270,7 +275,11 @@ namespace FanController
                     }
                     Console.WriteLine();
 
-                    return new Matrix(channelId, matrix);
+                    return new Matrix()
+                    {
+                        ChannelId = channelId,
+                        MatrixPoints = matrix
+                    };
                 }
             }
         }
