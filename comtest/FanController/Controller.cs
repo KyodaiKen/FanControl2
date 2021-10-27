@@ -18,14 +18,15 @@ namespace FanController
 
         private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
 
-        public byte DeviceName { get; private set; }
+        public byte DeviceID { get; private set; }
+        public string DeviceName { get; set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
-        internal Controller(SerialPortStream SerialPort, byte DeviceName)
+        internal Controller(SerialPortStream SerialPort, byte DeviceID)
         {
             this.SerialPort = SerialPort;
-            this.DeviceName = DeviceName;
+            this.DeviceID = DeviceID;
         }
 
         public void StartListening()
@@ -57,7 +58,7 @@ namespace FanController
 
                     if (await Task.WhenAny(readTask, Task.Delay(Protocol.HandShake.Timeout)) != readTask)
                     {
-                        OnWarning?.Invoke(DeviceName, "Timeout");
+                        OnWarning?.Invoke(DeviceID, "Timeout");
                         continue;
                     }
 
@@ -65,7 +66,7 @@ namespace FanController
 
                     if (data < 1)
                     {
-                        OnError?.Invoke(DeviceName, "No data was read");
+                        OnError?.Invoke(DeviceID, "No data was read");
                     }
 
                     // Status Byte
@@ -73,20 +74,20 @@ namespace FanController
 
                     if (status == Protocol.Status.RESP_ERR)
                     {
-                        OnError?.Invoke(DeviceName, readBuffer);
+                        OnError?.Invoke(DeviceID, readBuffer);
                         // Abort Operation
                         continue;
                     }
 
                     if (status == Protocol.Status.RESP_WRN)
                     {
-                        OnWarning?.Invoke(DeviceName, readBuffer);
+                        OnWarning?.Invoke(DeviceID, readBuffer);
                     }
 
                     // Expected Behaviour
                     //if (status == Commands.Status.RESP_OK)
                     //{
-                    //    OnWarning?.Invoke(DeviceName, readBuffer);
+                    //    OnWarning?.Invoke(DeviceID, readBuffer);
                     //}
 
                     // Kind of response Byte
@@ -95,7 +96,7 @@ namespace FanController
                     if (kind == Protocol.Request.RQST_GET_SENSORS)
                     {
 #warning need proper deserialization
-                        OnSensorsUpdate?.Invoke(DeviceName, readBuffer);
+                        OnSensorsUpdate?.Invoke(DeviceID, readBuffer);
                     }
                     else
                     {
