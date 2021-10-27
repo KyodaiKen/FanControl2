@@ -4,13 +4,13 @@ namespace FanController
 {
     public class Controller
     {
-        public delegate void SensorsUpdateEvent(string DeviceId, object Data);
+        public delegate void SensorsUpdateEvent(byte DeviceId, object Data);
         public event SensorsUpdateEvent? OnSensorsUpdate;
 
-        public delegate void ErrorEvent(string DeviceId, object Data);
+        public delegate void ErrorEvent(byte DeviceId, object Data);
         public event ErrorEvent? OnError;
 
-        public delegate void WarningEvent(string DeviceId, object Data);
+        public delegate void WarningEvent(byte DeviceId, object Data);
         public event WarningEvent? OnWarning;
 
         private readonly SerialPortStream SerialPort;
@@ -18,11 +18,11 @@ namespace FanController
 
         private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
 
-        public string DeviceName { get; private set; }
+        public byte DeviceName { get; private set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
-        internal Controller(SerialPortStream SerialPort, string DeviceName)
+        internal Controller(SerialPortStream SerialPort, byte DeviceName)
         {
             this.SerialPort = SerialPort;
             this.DeviceName = DeviceName;

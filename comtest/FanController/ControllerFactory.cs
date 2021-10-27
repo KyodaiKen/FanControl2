@@ -32,7 +32,7 @@ namespace FanController
 
                     var buffer = new byte[Protocol.BufferSize];
 
-                    string? deviceId = null;
+                    byte deviceId = 0;
 
                     for (int i = 0; i < Protocol.HandShake.AttemptsToConnect; i++)
                     {
@@ -50,25 +50,23 @@ namespace FanController
                                 continue;
                             }
 
-                            if (buffer[0..Protocol.HandShake.ResponsePrefixHandShakeBytes.Length] != Protocol.HandShake.ResponsePrefixHandShakeBytes)
+                            //TODO: If EEPROM error occurrs, RESP_ERR+ERR_EEPROM are sent BEFORE the welcome message!
+
+                            byte[] message = buffer[0..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
+                            if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
                             {
                                 // Incompatible device falls here
                                 continue;
                             }
 
-                            var id = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length..buffer.Length];
+                            deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length];
 
-                            deviceId = Encoding.ASCII.GetString(id);
+                            controllers.Add(new Controller(currentPort, deviceId));
+                            Console.WriteLine($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");
+                            break;
                         }
                     }
-
-                    if (deviceId is null)
-                    {
-                        // No compatible device found
-                        continue;
-                    }
-
-                    controllers.Add(new Controller(currentPort, deviceId));
+                    
                 }
                 catch (Exception ex)
                 {

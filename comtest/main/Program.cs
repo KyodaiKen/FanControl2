@@ -23,7 +23,7 @@ namespace comtest
             await Task.Delay(-1);
         }
 
-        private static void OnSensorsUpdate(string DeviceId, object Data)
+        private static void OnSensorsUpdate(byte DeviceId, object Data)
         {
             Console.WriteLine($"Device => '{DeviceId}' Data => '{Data}'");
         }
