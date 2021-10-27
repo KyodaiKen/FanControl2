@@ -57,7 +57,7 @@ namespace FanController
                                 Console.WriteLine($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
                             }
 
-                            byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
+                            byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start)];
                             if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
                             {
                                 // Incompatible device falls here
