@@ -20,7 +20,7 @@ namespace FanController
 
         public byte DeviceID { get; private set; }
         public string DeviceName { get; set; }
-        public DeviceCapabilities DeviceCapabilities { get; private set; }
+        public DeviceCapabilities? DeviceCapabilities { get; private set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
@@ -154,11 +154,11 @@ namespace FanController
             await SerialPort.SendCommand(preparedCommand);
         }
 
-        private async Task GetDeviceCapabilities()
+        public async Task GetDeviceCapabilities()
         {
             const byte commandKey = Protocol.Request.RQST_CAPABILITIES;
 
-            Console.WriteLine($"Sending get capabilitie3s command to controller with the id {this.DeviceID}...");
+            Console.WriteLine($"Sending get capabilities command to controller with the id {this.DeviceID}...");
             await SendCommand(commandKey);
 
             while (true)
@@ -174,6 +174,8 @@ namespace FanController
                         NumberOfSensors = CommandAnswers[commandKey][0],
                         NumberOfChannels = CommandAnswers[commandKey][1]
                     };
+
+                    break;
                 }
             }
         }
@@ -226,6 +228,9 @@ namespace FanController
 
         public async Task<Curve> GetMatrix(byte channelId)
         {
+
+            if (DeviceCapabilities == null) throw new NotSupportedException("Device capabilities unknown at this point!");
+
             const byte commandKey = Protocol.Request.RQST_GET_MATRIX;
             byte[] payload = new byte[1];
             payload[0] = channelId;
@@ -242,15 +247,13 @@ namespace FanController
                     Console.WriteLine($"Received data!");
 
                     // Convert data to curve
-                    byte len = CommandAnswers[commandKey][0];
-                    byte[] data = CommandAnswers[commandKey][1..]; //Remove the length from so we only have the curve data.
+                    byte[] data = CommandAnswers[commandKey]; //Remove the length from so we only have the curve data.
 
-                    Console.WriteLine($"Data length: {len}");
+                    Console.WriteLine($"Data length: {DeviceCapabilities.NumberOfChannels} (from device capabilities), length from data: {data.Length/4}");
 
-                    CurvePoint[] cps = new CurvePoint[len];
                     //Those offsets are headache to the power of 1000
-
                     //Deserializing could be made better by just using a struct array and copy the data into it...
+                    /*
                     for (int i = 0; i < len; i++)
                     {
                         int di = i * 5;
@@ -260,12 +263,14 @@ namespace FanController
 
                         Console.WriteLine($"Curve point {i}: {temp} => {dc} added!");
                     }
+                   
 
                     CommandAnswers.Remove(commandKey);
                     Curve curve = new Curve();
                     curve.ChannelId = channelId;
                     curve.CurvePoints = cps;
-                    return curve;
+                    return curve; */
+                    return null;
                 }
             }
         }
