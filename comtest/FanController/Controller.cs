@@ -53,7 +53,15 @@ namespace FanController
                 {
                     // Proposal => Read till ending pattern is found, use if needed to process larger inputs that needs several packages to arrive
 
-                    var data = await SerialPort.ReadAsync(readBuffer);
+                    var readTask = SerialPort.ReadAsync(readBuffer).AsTask();
+
+                    if (await Task.WhenAny(readTask, Task.Delay(Protocol.HandShake.Timeout)) != readTask)
+                    {
+                        OnWarning?.Invoke(DeviceName, "Timeout");
+                        continue;
+                    }
+
+                    var data = await readTask;
 
                     if (data < 1)
                     {

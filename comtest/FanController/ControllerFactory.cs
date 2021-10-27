@@ -38,7 +38,7 @@ namespace FanController
                     {
                         var readTask = currentPort.ReadAsync(buffer).AsTask();
 
-                        if (await Task.WhenAny(readTask, Task.Delay(Protocol.HandShake.Timeout)) != readTask)
+                        if (await Task.WhenAny(readTask, Task.Delay(Protocol.HandShake.Timeout)) == readTask)
                         {
                             // Sucess reading The buffer
 
