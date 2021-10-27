@@ -1,70 +1,74 @@
-﻿using System.IO.Ports;
-using System.Text;
+﻿using System.Text;
+using RJCP.IO.Ports;
 
 namespace FanController
 {
     public class ControllerFactory
     {
+#warning linux may have issues
+        //https://github.com/jcurl/RJCP.DLL.SerialPortStream#40-installation
         public static async Task<List<Controller>> GetCompatibleDevicesAsync()
         {
             var controllers = new List<Controller>();
 
-            var portsConected = SerialPort.GetPortNames();
+            var availablePortDescription = SerialPortStream.GetPortDescriptions();
 
-            foreach (var port in portsConected)
+            foreach (var availablePort in availablePortDescription)
             {
-                var currentPort = new SerialPort(port, 115200);
+                var currentPort = new SerialPortStream(availablePort.Port, Protocol.HandShake.BaudRate);
 
                 try
                 {
-                    Console.WriteLine($"Opening {port}");
+#warning to do better implementation with logger
+                    Console.WriteLine($"Opening {availablePort.Port} => {availablePort.Description}");
+
                     currentPort.Open();
 
                     currentPort.WriteTimeout = Timeout.Infinite;
                     currentPort.ReadTimeout = Timeout.Infinite;
 
-                    //currentPort.NewLine = Constants.NewLineOverride;
-
                     // HandShakePacket
-                    currentPort.SendCommand(Commands.Request.RQST_IDENTIFY);
+                    await currentPort.SendCommand(Protocol.Request.RQST_IDENTIFY);
 
-                    var buffer = new byte[64];
+                    var buffer = new byte[Protocol.BufferSize];
 
-                    var getDevice = new Task<byte[]>(() =>
+                    string? deviceId = null;
+
+                    for (int i = 0; i < Protocol.HandShake.AttemptsToConnect; i++)
                     {
-                        while (true)
+                        var readTask = currentPort.ReadAsync(buffer).AsTask();
+
+                        if (await Task.WhenAny(readTask, Task.Delay(Protocol.HandShake.Timeout)) != readTask)
                         {
-                            var dataRead = currentPort.Read(buffer, 0, buffer.Length);
-                            if (dataRead < Constants.ResponsePrefixHandShakeBytes.Length)
+                            // Sucess reading The buffer
+
+                            var bytesReadCount = await readTask;
+
+                            if (bytesReadCount < Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)
                             {
                                 // Incompatible device falls here
                                 continue;
                             }
 
-                            if (buffer[0..Constants.ResponsePrefixHandShakeBytes.Length] != Constants.ResponsePrefixHandShakeBytes)
+                            if (buffer[0..Protocol.HandShake.ResponsePrefixHandShakeBytes.Length] != Protocol.HandShake.ResponsePrefixHandShakeBytes)
                             {
                                 // Incompatible device falls here
                                 continue;
                             }
 
-                            var id = buffer[Constants.ResponsePrefixHandShakeBytes.Length..buffer.Length];
+                            var id = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length..buffer.Length];
 
-                            return id;
+                            deviceId = Encoding.ASCII.GetString(id);
                         }
-                    });
+                    }
 
-                    getDevice.Start();
-
-                    if (await Task.WhenAny(getDevice, Task.Delay(Constants.Timeout)) != getDevice)
+                    if (deviceId is null)
                     {
-                        // timeout logic
-                        currentPort.Close();
+                        // No compatible device found
                         continue;
                     }
 
-                    var device = Encoding.ASCII.GetString(await getDevice);
-
-                    controllers.Add(new Controller(currentPort, device));
+                    controllers.Add(new Controller(currentPort, deviceId));
                 }
                 catch (Exception ex)
                 {

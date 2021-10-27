@@ -1,25 +1,22 @@
-﻿using System.Collections.Immutable;
-using System.Text;
+﻿using System.Text;
 
 namespace FanController
 {
-    internal static class Constants
+    internal static class Protocol
     {
-        //internal const string NewLineOverride = "\r\n";
+            internal const int BufferSize = 64;
 
+        public static class HandShake
+        {
 #warning adjust timeout
-        internal const int Timeout = 100000;
+            internal const int Timeout = 100000;
 
-        internal const string ResponsePrefixStatus = "Status";
-        internal const string ResponsePrefixSettings = "Settings";
-        internal const string ResponsePrefixError = "Error";
-        internal const string ResponsePrefixCommandAnswer = "CommandAnswer";
-        internal const string ResponsePrefixHandShake = "KyoudaiKen FCNG";
-        internal static readonly byte[] ResponsePrefixHandShakeBytes = Encoding.ASCII.GetBytes(ResponsePrefixHandShake);
-    }
+            internal const int BaudRate = 115200;
+            internal const int AttemptsToConnect = 5;
+            internal const string ResponsePrefixHandShake = "KyoudaiKen FCNG";
+            internal static readonly byte[] ResponsePrefixHandShakeBytes = Encoding.ASCII.GetBytes(ResponsePrefixHandShake);
+        }
 
-    internal static class Commands
-    {
         ////REQUEST BYTES////
         public static class Request
         {
@@ -62,5 +59,4 @@ namespace FanController
             internal const byte ERR_EEPROM = 0xEE;
         }
     }
-
 }

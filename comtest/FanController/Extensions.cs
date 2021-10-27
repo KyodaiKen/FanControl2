@@ -1,4 +1,4 @@
-﻿using System.IO.Ports;
+﻿using RJCP.IO.Ports;
 using System.Runtime.Serialization.Formatters.Binary;
 
 namespace FanController
@@ -6,10 +6,15 @@ namespace FanController
     // Investigate BinaryReader Class https://docs.microsoft.com/en-us/dotnet/api/system.io.binaryreader?view=net-6.0
     public static class Extensions
     {
-        private static readonly BinaryFormatter BinaryFormatter = new BinaryFormatter();
+        public static async Task SendCommand(this SerialPortStream SerialPort, params byte[] data)
+        {
+            await SerialPort.WriteAsync(data, 0, data.Length);
+        }
+
+        private static readonly BinaryFormatter BinaryFormatter = new();
         public static byte[] ConvertToBinary<T>(this T data)
         {
-            MemoryStream ms = new MemoryStream();
+            var ms = new MemoryStream();
             BinaryFormatter.Serialize(ms, data);
 
             return ms.ToArray();
@@ -17,17 +22,14 @@ namespace FanController
 
         public static T ConvertToObject<T>(this byte[] data)
         {
-            MemoryStream memStream = new MemoryStream(data);
-            memStream.Position = 0;
+            var memStream = new MemoryStream(data)
+            {
+                Position = 0
+            };
 
             T obj = (T)BinaryFormatter.Deserialize(memStream);
 
             return obj;
-        }
-
-        public static void SendCommand(this SerialPort SerialPort, params byte[] data)
-        {
-            SerialPort.Write(data, 0, data.Length);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.IO.Ports;
+﻿using RJCP.IO.Ports;
 
 namespace FanController
 {
@@ -13,7 +13,7 @@ namespace FanController
         public delegate void WarningEvent(string DeviceId, object Data);
         public event WarningEvent? OnWarning;
 
-        private readonly SerialPort SerialPort;
+        private readonly SerialPortStream SerialPort;
         private bool Listening;
 
         private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
@@ -22,7 +22,7 @@ namespace FanController
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
-        internal Controller(SerialPort SerialPort, string DeviceName)
+        internal Controller(SerialPortStream SerialPort, string DeviceName)
         {
             this.SerialPort = SerialPort;
             this.DeviceName = DeviceName;
@@ -44,16 +44,16 @@ namespace FanController
 
             // Non awaited so it works in other thread
 
-            var readBuffer = new byte[64];
+            var readBuffer = new byte[Protocol.BufferSize];
 
-            Task.Run(() =>
+            // Send it to other thread so it doesn't block the main thread
+            Task.Run(async () =>
             {
                 while (Listening)
                 {
-                    // Read till the patter is found, use if needed to process larger inputs that needs several packages to arrive
-                    //var data = SerialPort.ReadTo("EOF");
+                    // Proposal => Read till ending pattern is found, use if needed to process larger inputs that needs several packages to arrive
 
-                    var data = SerialPort.Read(readBuffer, 0, readBuffer.Length);
+                    var data = await SerialPort.ReadAsync(readBuffer);
 
                     if (data < 1)
                     {
@@ -63,13 +63,14 @@ namespace FanController
                     // Status Byte
                     var status = readBuffer[0];
 
-                    if (status == Commands.Status.RESP_ERR)
+                    if (status == Protocol.Status.RESP_ERR)
                     {
                         OnError?.Invoke(DeviceName, readBuffer);
+                        // Abort Operation
                         continue;
                     }
 
-                    if (status == Commands.Status.RESP_WRN)
+                    if (status == Protocol.Status.RESP_WRN)
                     {
                         OnWarning?.Invoke(DeviceName, readBuffer);
                     }
@@ -83,8 +84,9 @@ namespace FanController
                     // Kind of response Byte
                     var kind = readBuffer[1];
 
-                    if (kind == Commands.Request.RQST_GET_SENSORS)
+                    if (kind == Protocol.Request.RQST_GET_SENSORS)
                     {
+#warning need proper deserialization
                         OnSensorsUpdate?.Invoke(DeviceName, readBuffer);
                     }
                     else
@@ -97,6 +99,8 @@ namespace FanController
                         {
                             CommandAnswers[kind] = readBuffer;
                         }
+
+                        // new data recived, send pulse so listeners can check if it's what they need
                         waitHandle.Set();
                     }
                 }
@@ -118,20 +122,37 @@ namespace FanController
             Listening = false;
         }
 
-#warning needs to be tested, seriously, dont use this
-        public void SetNewCurve(Curve data)
+        public async Task SendCommand(byte command, byte[]? payload = null)
         {
-            throw new NotImplementedException();
+            const int maxPayloadSize = Protocol.BufferSize - 1;
+            var preparedCommand = new byte[Protocol.BufferSize];
+            preparedCommand[0] = command;
 
-            var bin = data.ConvertToBinary();
+            if (payload is not null)
+            {
+                if (payload.Length > Protocol.BufferSize - 1)
+                {
+                    throw new ArgumentException($"Payload too big, currently is '{payload.Length}', and the max allowed is '{maxPayloadSize}'");
+                }
 
-            SerialPort.Write(bin, 0, bin.Length);
+                Array.Copy(payload, 0, preparedCommand, 1, payload.Length);
+            }
+
+            await SerialPort.SendCommand(preparedCommand);
         }
 
-        public Curve GetCurrentCurve()
+#warning needs to be tested, seriously, dont use this for now
+        public async Task SetNewCurve(Curve data)
         {
-            const byte commandKey = Commands.Request.RQST_GET_CURVE;
-            SerialPort.SendCommand(commandKey);
+            var payload = data.ConvertToBinary();
+
+            await SendCommand(Protocol.Request.RQST_SET_CURVE, payload);
+        }
+
+        public async Task<Curve> GetCurrentCurve()
+        {
+            const byte commandKey = Protocol.Request.RQST_GET_CURVE;
+            await SendCommand(commandKey);
 
             while (true)
             {
