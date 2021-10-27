@@ -51,7 +51,7 @@ namespace FanController
                             }
 
                             int start = 0;
-                            if (buffer[0] == Protocol.Status.RESP_OK && buffer[1] == Protocol.Error.ERR_EEPROM)
+                            if (buffer[0] == Protocol.Status.RESP_ERR && buffer[1] == Protocol.Error.ERR_EEPROM)
                             {
                                 start = 2;
                                 Console.WriteLine($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
