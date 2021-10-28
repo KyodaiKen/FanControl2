@@ -95,25 +95,17 @@ namespace FanController
                     // Kind of response Byte
                     var kind = readBuffer[1];
 
-                    if (kind == Protocol.Request.RQST_GET_SENSORS)
+                    if (!CommandAnswers.ContainsKey(kind))
                     {
-#warning need proper deserialization
-                        OnSensorsUpdate?.Invoke(DeviceID, readBuffer);
+                        CommandAnswers.Add(kind, readBuffer[2..data]);
                     }
                     else
                     {
-                        if (!CommandAnswers.ContainsKey(kind))
-                        {
-                            CommandAnswers.Add(kind, readBuffer[2..data]);
-                        }
-                        else
-                        {
-                            CommandAnswers[kind] = readBuffer[2..data];
-                        }
-
-                        // new data recived, send pulse so listeners can check if it's what they need
-                        waitHandle.Set();
+                        CommandAnswers[kind] = readBuffer[2..data];
                     }
+
+                    // new data recived, send pulse so listeners can check if it's what they need
+                    waitHandle.Set();
                 }
             });
         }

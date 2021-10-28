@@ -31,7 +31,9 @@
 #define RQST_GET_CAL_OFFSETS 0xAD
 #define RQST_GET_CAL_SH_COEFFS 0xAE
 #define RQST_GET_PINS 0xAF
-#define RQST_GET_SENSORS 0xBA
+#define RQST_GET_THERMAL_SENSORS 0xBA
+#define RQST_GET_MATRIX_RESULTS 0xBB
+#define RQST_GET_DUTY_CYCLES 0xBC
 
 
 #define RQST_WRITE_TO_EEPROM 0xDD
@@ -478,18 +480,12 @@ void doFanControl() {
 #pragma endregion HELPERS
 
 #pragma region SERIAL_TOOLS
-//Write binary sensor data to serial for LHM
+
+//Serialize float so C# can read it
 void serialWriteFloat(float f)
 {
     unsigned char *b = (unsigned char *)&f;
     Serial.write(b, 4);
-}
-
-void sendSensorDataBinary()
-{
-    for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(t[s]); //Temperatures
-    for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(ct[c]); //Matrix results
-    for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(cdc[c]); //Current duty cycle
 }
 
 unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
@@ -764,10 +760,22 @@ void loop()
             Serial.write((unsigned char)N_CURVES);
 
             break;
-        case RQST_GET_SENSORS:
+        case RQST_GET_THERMAL_SENSORS:
 
             sendOK(request);
-            sendSensorDataBinary();
+            for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(t[s]);
+
+            break;
+        case RQST_GET_MATRIX_RESULTS:
+
+            sendOK(request);
+            for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(ct[c]);
+
+            break;
+        case RQST_GET_DUTY_CYCLES:
+
+            sendOK(request);
+            for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(cdc[c]);
 
             break;
         case RQST_READ_FROM_EEPROM:
