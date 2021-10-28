@@ -199,7 +199,7 @@ namespace FanController
                     CurvePoint[] cps = new CurvePoint[len];
                     //Those offsets are headache to the power of 1000
 
-                    //Deserializing could be made better by just using a struct array and copy the data into it...
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
                     for (int i = 0; i < len; i++)
                     {
                         int di = i * 5;
@@ -254,7 +254,7 @@ namespace FanController
                             "the number of channels on this controller.");
 
                     //Those offsets are headache to the power of 1000
-                    //Deserializing could be made better by just using a struct array and copy the data into it...
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
 
                     float[] matrix = new float[DeviceCapabilities.NumberOfChannels];
 
