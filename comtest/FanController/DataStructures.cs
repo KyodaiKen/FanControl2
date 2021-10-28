@@ -23,6 +23,8 @@
     {
         public Dictionary<byte, ThermalSensor> ThermalSensors { get; set; }
         public Dictionary<byte, PWMChannel> PWMChannels { get; set; }
+        public Dictionary<byte, Matrix> Matrixes { get; set; }
+        public Dictionary<byte, Curve> Curves { get; set; }
     }
 
     public class Matrix
