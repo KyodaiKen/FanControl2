@@ -8,10 +8,10 @@
 
     public class ThermalSensor
     {
-        float[] CalibrationSteinhartHartCoefficients { get; set; }
-        float CalibrationOffset { get; set; }
-        float CalibrationResistorValue { get; set; }
-        byte Pin { get; set; }
+        public float[] CalibrationSteinhartHartCoefficients { get; set; }
+        public float CalibrationOffset { get; set; }
+        public float CalibrationResistorValue { get; set; }
+        public byte Pin { get; set; }
     }
 
     public class PWMChannel
@@ -21,10 +21,10 @@
 
     public class ControllerConfig
     {
-        public Dictionary<byte, ThermalSensor> ThermalSensors { get; set; }
-        public Dictionary<byte, PWMChannel> PWMChannels { get; set; }
-        public Dictionary<byte, Matrix> Matrixes { get; set; }
-        public Dictionary<byte, Curve> Curves { get; set; }
+        public ThermalSensor[] ThermalSensors { get; set; }
+        public PWMChannel[] PWMChannels { get; set; }
+        public Matrix[] Matrixes { get; set; }
+        public Curve[] Curves { get; set; }
     }
 
     public class Matrix

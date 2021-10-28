@@ -233,6 +233,8 @@ void readThermostatCalibration() {
         EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 12, thscs[i][0]); //Read Steinhart-Hart coefficients
         EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 12 + 4, thscs[i][1]); //Read Steinhart-Hart coefficients
         EEPROM.get(EEPROM_CAL_COEFF_OFFSET + i * 12 + 8, thscs[i][2]); //Read Steinhart-Hart coefficients
+
+        //Serial.print(thscs[i][0],12); Serial.print(" "); Serial.print(thscs[i][1],12); Serial.print(" "); Serial.println(thscs[i][2],12); 
     }
 }
 
@@ -831,12 +833,14 @@ void loop()
 
         case RQST_GET_CAL_RESISTRS:
 
+            sendOK(request);
             for(i = 0; i < N_SENSORS; i++) serialWriteFloat(thsRpd[i]);
 
             break;
 
         case RQST_GET_CAL_OFFSETS:
 
+            sendOK(request);
             for(i = 0; i < N_SENSORS; i++) serialWriteFloat(thsco[i]);
 
             break;
@@ -857,7 +861,7 @@ void loop()
 
             sendOK(request);
             for(i = 0; i < N_SENSORS; i++) Serial.write(thsp[i]);
-            for(i = 0; i < N_SENSORS; i++) Serial.write(cpp[i]);
+            for(i = 0; i < N_CURVES; i++) Serial.write(cpp[i]);
 
             break;
 

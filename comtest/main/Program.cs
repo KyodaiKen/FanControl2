@@ -17,6 +17,9 @@ namespace comtest
                 controller.OnSensorsUpdate += OnSensorsUpdate;
                 controller.StartListening();
 
+                await controller.GetDeviceCapabilities();
+                await controller.GetThermalSensorCalibration();
+
                 await controller.GetCurve(0);
                 await controller.GetMatrix(0);
             }

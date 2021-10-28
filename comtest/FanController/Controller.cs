@@ -21,6 +21,7 @@ namespace FanController
         public byte DeviceID { get; private set; }
         public string DeviceName { get; set; }
         public DeviceCapabilities? DeviceCapabilities { get; private set; }
+        public ControllerConfig? ControllerConfig { get; private set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
@@ -171,6 +172,119 @@ namespace FanController
                     break;
                 }
             }
+        }
+
+        public async Task GetThermalSensorCalibration()
+        {
+            if (DeviceCapabilities == null) throw new ArgumentNullException("DeviceCapabilities unknown.");
+            byte commandKey = Protocol.Request.RQST_GET_CAL_RESISTRS;
+
+            ThermalSensor[] sensors = new ThermalSensor[DeviceCapabilities.NumberOfSensors];
+            byte[] data;
+
+            Console.WriteLine($"Sending get calibration resistor values command to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    data = CommandAnswers[commandKey];
+                    if (data.Length != DeviceCapabilities.NumberOfSensors * 4) throw new ArgumentException("Controller returned the wrong number of sensor information");
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+                    {
+                        if(sensors[i] == null) sensors[i] = new ThermalSensor();
+                        sensors[i].CalibrationResistorValue = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
+                        Console.WriteLine($"Retrieved resistor value {sensors[i].CalibrationResistorValue} for sensor ID {i}");
+                    }
+
+                    break;
+                }
+            }
+
+            commandKey = Protocol.Request.RQST_GET_CAL_OFFSETS;
+            Console.WriteLine($"Sending get calibration offset values command to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    data = CommandAnswers[commandKey];
+                    if (data.Length != DeviceCapabilities.NumberOfSensors * 4) throw new ArgumentException("Controller returned the wrong number of sensor information");
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+                    {
+                        sensors[i].CalibrationOffset = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
+                        Console.WriteLine($"Retrieved offset value {sensors[i].CalibrationOffset} for sensor ID {i}");
+                    }
+
+                    break;
+                }
+            }
+
+            commandKey = Protocol.Request.RQST_GET_CAL_SH_COEFFS;
+            Console.WriteLine($"Sending get calibration Steinhart-Hart coefficients command to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey);
+            
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    data = CommandAnswers[commandKey];
+                    if (data.Length != DeviceCapabilities.NumberOfSensors * 12) throw new ArgumentException("Controller returned the wrong number of sensor information");
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+                    {
+                        float[] values = new float[3];
+                        int di = i * 12;
+                        for (int c = 0; c < 3; c++)
+                        {
+                            int dc = c * 4;
+                            values[c] = BitConverter.ToSingle(data.AsSpan()[(di + dc)..(di + dc + 4)]);
+                        }
+                        sensors[i].CalibrationSteinhartHartCoefficients = values;
+                        Console.WriteLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", sensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
+                    }
+
+                    break;
+                }
+            }
+
+            commandKey = Protocol.Request.RQST_GET_PINS;
+            Console.WriteLine($"Sending get thermistor and PWM channel pin numbers command to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    data = CommandAnswers[commandKey];
+                    if (data.Length != DeviceCapabilities.NumberOfSensors * 3 + DeviceCapabilities.NumberOfChannels * 3) throw new ArgumentException("Controller returned the wrong number of sensor information");
+#warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+                    {
+#warning to be done
+                        Console.WriteLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", sensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
+                    }
+
+                    break;
+                }
+            }
+
+#warning to be done
+            ControllerConfig = new ControllerConfig() {
+                ThermalSensors = sensors
+            };
         }
 
         public async Task<Curve> GetCurve(byte channelId)
