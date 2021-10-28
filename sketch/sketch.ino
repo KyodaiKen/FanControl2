@@ -34,7 +34,7 @@
 #define RQST_GET_THERMAL_SENSORS 0xBA
 #define RQST_GET_MATRIX_RESULTS 0xBB
 #define RQST_GET_DUTY_CYCLES 0xBC
-
+#define RQST_GET_ALL_SENSORS 0xBD
 
 #define RQST_WRITE_TO_EEPROM 0xDD
 #define RQST_READ_FROM_EEPROM 0xDF
@@ -775,6 +775,14 @@ void loop()
         case RQST_GET_DUTY_CYCLES:
 
             sendOK(request);
+            for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(cdc[c]);
+
+            break;
+        case RQST_GET_ALL_SENSORS:
+
+            sendOK(request);
+            for (unsigned char s = 0; s < N_SENSORS; s++) serialWriteFloat(t[s]);
+            for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(ct[c]);
             for (unsigned char c = 0; c < N_CURVES; c++) serialWriteFloat(cdc[c]);
 
             break;
