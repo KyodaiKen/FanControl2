@@ -490,6 +490,12 @@ void serialWriteFloat(float f)
     Serial.write(b, 4);
 }
 
+float serialReadFloat() {
+    unsigned char buff[4];
+    Serial.readBytes(buff, 4);
+    return ((float*)buff)[0];
+}
+
 unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
     //loop until we have new data until we got a \n sequence.
     timeout_ms /= 10;
@@ -931,16 +937,16 @@ void loop()
             timestamp = millis();
             while (Serial.available() < 2 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            if (Serial.available() < 2)
+            if (Serial.available() > 2)
             {
                 rqst_id = Serial.read(); //Read curve id to be updaterd
                 unsigned char sc_data_len = Serial.read(); //Read number of curve points
 
                 //Wait for the rest of the data if it wasn't transmitted already. 
                 timestamp = millis();
-                while (Serial.available() != (sc_data_len + 1) * CURVE_FIELD_LEN && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
+                while (Serial.available() != sc_data_len * CURVE_FIELD_LEN && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
  
-                if (Serial.available() != (sc_data_len + 1) * CURVE_FIELD_LEN)
+                if (Serial.available() != sc_data_len * CURVE_FIELD_LEN)
                 {
                     sendError(ERR_TIMEOUT, request);
                 }
@@ -954,7 +960,7 @@ void loop()
                     {
                         //Read the data and store it in our memory array
                         for(i = 0; i < sc_data_len; i++) {
-                            float s_temp = Serial.parseFloat();
+                            float s_temp = serialReadFloat();
                             unsigned char s_dc = Serial.read();
                             if(s_dc > 100) s_dc = 100;
                             cdta[rqst_id][i].temp = s_temp;
@@ -978,7 +984,7 @@ void loop()
 
             //Wait for the curve ID for the matrix
             timestamp = millis();
-            while (Serial.available() > 1 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
+            while (Serial.available() < 1 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
             if (Serial.available() > 1)
             {
@@ -1003,7 +1009,7 @@ void loop()
                     {
                         //Read the data and store it in our memory array
                         for(i = 0; i < 3; i++) {
-                            m[rqst_id][i] = Serial.parseFloat();
+                            m[rqst_id][i] = serialReadFloat();
                         }
 
                         sendOK(request);
@@ -1029,7 +1035,7 @@ void loop()
             }
             else
             {
-                for(i = 0; i < N_SENSORS; i++) thsRpd[i] = Serial.parseFloat();
+                for(i = 0; i < N_SENSORS; i++) thsRpd[i] = serialReadFloat();
                 sendOK(request);
             }
 
@@ -1047,7 +1053,7 @@ void loop()
             }
             else
             {
-                for(i = 0; i < N_SENSORS; i++) thsco[i] = Serial.parseFloat();
+                for(i = 0; i < N_SENSORS; i++) thsco[i] = serialReadFloat();
                 sendOK(request);
             }
 
@@ -1066,9 +1072,9 @@ void loop()
             else
             {
                 for(i = 0; i < N_SENSORS; i++) {
-                    thscs[i][0] = Serial.parseFloat();
-                    thscs[i][1] = Serial.parseFloat();
-                    thscs[i][2] = Serial.parseFloat();
+                    thscs[i][0] = serialReadFloat();
+                    thscs[i][1] = serialReadFloat();
+                    thscs[i][2] = serialReadFloat();
                 }
                 sendOK(request);
             }

@@ -403,30 +403,37 @@ namespace FanController
         #endregion
 
         #region "SET"
-        public async Task<bool> SetCurve(Curve curve)
+        public async Task<bool> SetCurve(byte curveID, Curve curve)
         {
             const byte commandKey = Protocol.Request.RQST_SET_CURVE;
 
             Console.WriteLine($"Sending set curve command to controller with the id {this.DeviceID}...");
-            await SendCommand(commandKey);
+
+            int ncp = curve.CurvePoints.Count();
+            byte[] payload = new byte[ncp * 5 + 2];
+
+            payload[0] = curveID;
+            payload[1] = (byte)curve.CurvePoints.Count();
+
+            Console.WriteLine(BitConverter.IsLittleEndian);
+
+            for (int i = 0; i < ncp; i++)
+            {
+                Array.Copy(BitConverter.GetBytes(curve.CurvePoints[i].Temperature), 0, payload, i * 5 + 2, 4);
+                payload[i * 5 + 6] = curve.CurvePoints[i].DutyCycle;
+            }
+
+            Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
+
+            await SendCommand(commandKey, payload);
 
             while (true)
             {
                 waitHandle.WaitOne();
 
-                int ncp = curve.CurvePoints.Count();
-                byte[] payload = new byte[ncp * 5];
-
                 if (CommandAnswers.ContainsKey(commandKey))
                 {
-                    Console.WriteLine($"Received data!");
-
-                    for(int i = 0; i < ncp; i++)
-                    {
-                        Array.Copy(BitConverter.GetBytes(curve.CurvePoints[i].Temperature), 0, payload, i * 5, 4);
-                        Array.Copy(BitConverter.GetBytes(curve.CurvePoints[i].Temperature), 0, payload, i * 5 + 4, 1);
-                    }
-
+                    Console.WriteLine("OK!");
                     break;
                 }
             }
