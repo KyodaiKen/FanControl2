@@ -21,7 +21,7 @@ namespace FanController
         public byte DeviceID { get; private set; }
         public string DeviceName { get; set; }
         public DeviceCapabilities? DeviceCapabilities { get; private set; }
-        public ControllerConfig? ControllerConfig { get; private set; }
+        public ControllerConfig? cc { get; private set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
@@ -148,12 +148,14 @@ namespace FanController
             await SerialPort.SendCommand(preparedCommand);
         }
 
-        public async Task GetDeviceCapabilities()
+        public async Task<DeviceCapabilities> GetDeviceCapabilities()
         {
             const byte commandKey = Protocol.Request.RQST_CAPABILITIES;
 
             Console.WriteLine($"Sending get capabilities command to controller with the id {this.DeviceID}...");
             await SendCommand(commandKey);
+
+            DeviceCapabilities dc;
 
             while (true)
             {
@@ -163,7 +165,7 @@ namespace FanController
                 {
                     Console.WriteLine($"Received data!");
 
-                    DeviceCapabilities = new DeviceCapabilities()
+                    dc = new DeviceCapabilities()
                     {
                         NumberOfSensors = CommandAnswers[commandKey][0],
                         NumberOfChannels = CommandAnswers[commandKey][1]
@@ -172,14 +174,18 @@ namespace FanController
                     break;
                 }
             }
+
+            return dc;
         }
 
-        public async Task GetThermalSensorCalibration()
+        public async Task<ControllerConfig> GetThermalSensorCalibration()
         {
             if (DeviceCapabilities == null) throw new ArgumentNullException("DeviceCapabilities unknown.");
             byte commandKey = Protocol.Request.RQST_GET_CAL_RESISTRS;
+            
+            ControllerConfig cc = new ControllerConfig();
 
-            ThermalSensor[] sensors = new ThermalSensor[DeviceCapabilities.NumberOfSensors];
+            cc.ThermalSensors = new ThermalSensor[DeviceCapabilities.NumberOfSensors];
             byte[] data;
 
             Console.WriteLine($"Sending get calibration resistor values command to controller with the id {this.DeviceID}...");
@@ -196,9 +202,9 @@ namespace FanController
                     #warning Deserializing could be made better by just using a struct array and copy the data into it...
                     for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                     {
-                        if(sensors[i] == null) sensors[i] = new ThermalSensor();
-                        sensors[i].CalibrationResistorValue = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
-                        Console.WriteLine($"Retrieved resistor value {sensors[i].CalibrationResistorValue} for sensor ID {i}");
+                        if(cc.ThermalSensors[i] == null) cc.ThermalSensors[i] = new ThermalSensor();
+                        cc.ThermalSensors[i].CalibrationResistorValue = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
+                        Console.WriteLine($"Retrieved resistor value {cc.ThermalSensors[i].CalibrationResistorValue} for sensor ID {i}");
                     }
 
                     break;
@@ -220,8 +226,8 @@ namespace FanController
                     #warning Deserializing could be made better by just using a struct array and copy the data into it...
                     for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                     {
-                        sensors[i].CalibrationOffset = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
-                        Console.WriteLine($"Retrieved offset value {sensors[i].CalibrationOffset} for sensor ID {i}");
+                        cc.ThermalSensors[i].CalibrationOffset = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
+                        Console.WriteLine($"Retrieved offset value {cc.ThermalSensors[i].CalibrationOffset} for sensor ID {i}");
                     }
 
                     break;
@@ -250,8 +256,8 @@ namespace FanController
                             int dc = c * 4;
                             values[c] = BitConverter.ToSingle(data.AsSpan()[(di + dc)..(di + dc + 4)]);
                         }
-                        sensors[i].CalibrationSteinhartHartCoefficients = values;
-                        Console.WriteLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", sensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
+                        cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients = values;
+                        Console.WriteLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
                     }
 
                     break;
@@ -262,6 +268,8 @@ namespace FanController
             Console.WriteLine($"Sending get thermistor and PWM channel pin numbers command to controller with the id {this.DeviceID}...");
             await SendCommand(commandKey);
 
+            cc.PWMChannels = new PWMChannel[DeviceCapabilities.NumberOfChannels];
+
             while (true)
             {
                 waitHandle.WaitOne();
@@ -269,22 +277,26 @@ namespace FanController
                 if (CommandAnswers.ContainsKey(commandKey))
                 {
                     data = CommandAnswers[commandKey];
-                    if (data.Length != DeviceCapabilities.NumberOfSensors * 3 + DeviceCapabilities.NumberOfChannels * 3) throw new ArgumentException("Controller returned the wrong number of sensor information");
+                    if (data.Length != DeviceCapabilities.NumberOfSensors + DeviceCapabilities.NumberOfChannels) throw new ArgumentException("Controller returned the wrong number of sensor information");
 #warning Deserializing could be made better by just using a struct array and copy the data into it...
                     for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                     {
-#warning to be done
-                        Console.WriteLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", sensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
+                        cc.ThermalSensors[i].Pin = data[i];
+                        Console.WriteLine($"Retrieved pin number for for sensor ID {i}: {data[i]}");
+                    }
+
+                    for (int i = 0; i < DeviceCapabilities.NumberOfChannels; i++)
+                    {
+                        cc.PWMChannels[i] = new PWMChannel();
+                        cc.PWMChannels[i].Pin = data[i + 3];
+                        Console.WriteLine($"Retrieved pin number for for PWM channel ID {i}: {data[i + 3]}");
                     }
 
                     break;
                 }
             }
 
-#warning to be done
-            ControllerConfig = new ControllerConfig() {
-                ThermalSensors = sensors
-            };
+            return cc;
         }
 
         public async Task<Curve> GetCurve(byte channelId)
