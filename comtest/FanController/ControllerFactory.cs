@@ -67,7 +67,8 @@ namespace FanController
                             deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
                             FanController contr = new FanController(currentPort, deviceId);
                             contr.StartListening();
-                            await contr.GetDeviceCapabilities();
+                            contr.DeviceCapabilities = await contr.GetDeviceCapabilities();
+                            await controller.GetThermalSensorCalibration();
                             controllers.Add(contr);
 
                             Console.WriteLine($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");

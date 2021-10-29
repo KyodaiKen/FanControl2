@@ -16,9 +16,6 @@ namespace comtest
             {
                 controller.OnSensorsUpdate += OnSensorsUpdate;
                 controller.StartListening();
-
-                controller.DeviceCapabilities = await controller.GetDeviceCapabilities();
-                await controller.GetThermalSensorCalibration();
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;
