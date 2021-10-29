@@ -181,7 +181,7 @@ namespace FanController
             return dc;
         }
 
-        public async Task<ControllerConfig> GetThermalSensorCalibration()
+        public async Task<ControllerConfig> GetControllerConfig()
         {
             byte commandKey = Protocol.Request.RQST_GET_CAL_RESISTRS;
             
@@ -407,7 +407,7 @@ namespace FanController
         {
             const byte commandKey = Protocol.Request.RQST_SET_CURVE;
 
-            Console.WriteLine($"Sending set curve command to controller with the id {this.DeviceID}...");
+            Console.WriteLine($"Sending set curve command to controller with the id {DeviceID}...");
 
             int ncp = curve.CurvePoints.Count();
             byte[] payload = new byte[ncp * 5 + 2];
@@ -415,12 +415,78 @@ namespace FanController
             payload[0] = curveID;
             payload[1] = (byte)curve.CurvePoints.Count();
 
-            Console.WriteLine(BitConverter.IsLittleEndian);
-
             for (int i = 0; i < ncp; i++)
             {
                 Array.Copy(BitConverter.GetBytes(curve.CurvePoints[i].Temperature), 0, payload, i * 5 + 2, 4);
                 payload[i * 5 + 6] = curve.CurvePoints[i].DutyCycle;
+            }
+
+            Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
+
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            return true;
+        }
+
+        public async Task<bool> SetMatrix(byte curveID, Matrix matrix)
+        {
+            const byte commandKey = Protocol.Request.RQST_SET_MATRIX;
+
+            Console.WriteLine($"Sending set matrix command to controller with the id {DeviceID}...");
+
+            byte[] payload = new byte[13];
+
+            payload[0] = curveID;
+
+            for (int i = 0; i < 3; i++)
+            {
+                Array.Copy(BitConverter.GetBytes(matrix.MatrixPoints[i]), 0, payload, i * 4 + 1, 4);
+            }
+
+            Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
+
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            return true;
+        }
+
+        public async Task<bool> SetControllerConfig(ControllerConfig ControllerConfig)
+        {
+            const byte commandKey = Protocol.Request.RQST_SET_MATRIX;
+
+            Console.WriteLine($"Sending calibration resistor values to controller with the id {DeviceID}...");
+
+            #warning TODO send the damn data
+
+            byte[] payload = new byte[13];
+
+            payload[0] = 0;
+
+            for (int i = 0; i < 3; i++)
+            {
+                //Array.Copy(BitConverter.GetBytes(matrix.MatrixPoints[i]), 0, payload, i * 4 + 1, 4);
             }
 
             Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");

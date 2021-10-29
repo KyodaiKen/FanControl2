@@ -989,7 +989,6 @@ void loop()
             if (Serial.available() > 1)
             {
                 rqst_id = Serial.read(); //Read curve id to be updaterd
-                unsigned char sc_data_len = Serial.read(); //Read number of curve points
 
                 //Wait for the rest of the data if it wasn't transmitted already. 
                 timestamp = millis();

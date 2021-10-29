@@ -37,6 +37,20 @@ namespace comtest
 
                 //Get curve 0 for testing
                 await controller.GetCurve(0);
+
+                //Test set matrix 0 for testing
+                await controller.SetMatrix(0, new Matrix()
+                {
+                    MatrixPoints = new float[3]
+                    {
+                        0.5f,
+                        0.5f,
+                        -1
+                    }
+                });
+
+                //Get matrix 0 for testing
+                await controller.GetMatrix(0);
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;
