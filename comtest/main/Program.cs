@@ -7,7 +7,7 @@ namespace comtest
 {
     public static class Program
     {
-        static List<Controller> controllers;
+        static List<global::FanController.FanController> controllers;
         static async Task Main(string[] args)
         {
             controllers = await ControllerFactory.GetCompatibleDevicesAsync();

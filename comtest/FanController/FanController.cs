@@ -2,7 +2,7 @@
 
 namespace FanController
 {
-    public class Controller
+    public class FanController
     {
         public delegate void SensorsUpdateEvent(byte DeviceId, object Data);
         public event SensorsUpdateEvent? OnSensorsUpdate;
@@ -18,19 +18,18 @@ namespace FanController
 
         private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
 
-        public byte DeviceID { get; private set; }
-        public string DeviceName { get; set; }
-        public DeviceCapabilities? DeviceCapabilities { get; private set; }
-        public ControllerConfig? ControllerConfig { get; private set; }
-
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
-        internal Controller(SerialPortStream SerialPort, byte DeviceID)
+        public byte DeviceID { get; set; }
+        public string DeviveName { get; set; }
+
+        internal FanController(SerialPortStream SerialPort, byte DeviceID)
         {
             this.SerialPort = SerialPort;
             this.DeviceID = DeviceID;
         }
 
+        #region "Listener"
         public void StartListening()
         {
             if (Listening)
@@ -147,7 +146,9 @@ namespace FanController
 
             await SerialPort.SendCommand(preparedCommand);
         }
+        #endregion
 
+        #region "GET"
         public async Task<DeviceCapabilities> GetDeviceCapabilities()
         {
             const byte commandKey = Protocol.Request.RQST_CAPABILITIES;
@@ -178,7 +179,6 @@ namespace FanController
             return dc;
         }
 
-        #region "GET"
         public async Task<ControllerConfig> GetThermalSensorCalibration()
         {
             if (DeviceCapabilities == null) throw new ArgumentNullException("DeviceCapabilities unknown.");
@@ -405,7 +405,31 @@ namespace FanController
         #endregion
 
         #region "SET"
+        public async Task<DeviceCapabilities> SetCurve()
+        {
+            const byte commandKey = Protocol.Request.RQST_SET_CURVE;
 
+            Console.WriteLine($"Sending set curve command to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey);
+
+            DeviceCapabilities dc;
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine($"Received data!");
+
+                    #warning todo
+
+                    break;
+                }
+            }
+
+            return dc;
+        }
         #endregion
     }
 }

@@ -7,9 +7,9 @@ namespace FanController
     {
 #warning linux may have issues
         //https://github.com/jcurl/RJCP.DLL.SerialPortStream#40-installation
-        public static async Task<List<Controller>> GetCompatibleDevicesAsync()
+        public static async Task<List<FanController>> GetCompatibleDevicesAsync()
         {
-            var controllers = new List<Controller>();
+            var controllers = new List<FanController>();
 
             var availablePortDescription = SerialPortStream.GetPortDescriptions();
 
@@ -65,7 +65,7 @@ namespace FanController
                             }
 
                             deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
-                            Controller contr = new Controller(currentPort, deviceId);
+                            FanController contr = new FanController(currentPort, deviceId);
                             contr.StartListening();
                             await contr.GetDeviceCapabilities();
                             controllers.Add(contr);
