@@ -178,6 +178,7 @@ namespace FanController
             return dc;
         }
 
+        #region "GET"
         public async Task<ControllerConfig> GetThermalSensorCalibration()
         {
             if (DeviceCapabilities == null) throw new ArgumentNullException("DeviceCapabilities unknown.");
@@ -401,5 +402,10 @@ namespace FanController
                 }
             }
         }
+        #endregion
+
+        #region "SET"
+
+        #endregion
     }
 }
