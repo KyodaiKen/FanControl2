@@ -42,7 +42,6 @@
     public class Curve
     {
         public byte ChannelId { get; set; }
-        public byte Length { get; set; }
         public CurvePoint[] CurvePoints { get; set; }
     }
 

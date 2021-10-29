@@ -403,7 +403,7 @@ namespace FanController
         #endregion
 
         #region "SET"
-        public async Task<DeviceCapabilities> SetCurve()
+        public async Task<bool> SetCurve(Curve curve)
         {
             const byte commandKey = Protocol.Request.RQST_SET_CURVE;
 
@@ -414,17 +414,24 @@ namespace FanController
             {
                 waitHandle.WaitOne();
 
+                int ncp = curve.CurvePoints.Count();
+                byte[] payload = new byte[ncp * 5];
+
                 if (CommandAnswers.ContainsKey(commandKey))
                 {
                     Console.WriteLine($"Received data!");
 
-                    #warning todo
+                    for(int i = 0; i < ncp; i++)
+                    {
+                        Array.Copy(BitConverter.GetBytes(curve.CurvePoints[i].Temperature), 0, payload, i * 5, 4);
+                        Array.Copy(BitConverter.GetBytes(curve.CurvePoints[i].Temperature), 0, payload, i * 5 + 4, 1);
+                    }
 
                     break;
                 }
             }
 
-            return null;
+            return true;
         }
         #endregion
     }
