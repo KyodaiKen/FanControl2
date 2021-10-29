@@ -21,7 +21,7 @@ namespace FanController
         public byte DeviceID { get; private set; }
         public string DeviceName { get; set; }
         public DeviceCapabilities? DeviceCapabilities { get; private set; }
-        public ControllerConfig? cc { get; private set; }
+        public ControllerConfig? ControllerConfig { get; private set; }
 
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
 
@@ -278,7 +278,7 @@ namespace FanController
                 {
                     data = CommandAnswers[commandKey];
                     if (data.Length != DeviceCapabilities.NumberOfSensors + DeviceCapabilities.NumberOfChannels) throw new ArgumentException("Controller returned the wrong number of sensor information");
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
                     for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                     {
                         cc.ThermalSensors[i].Pin = data[i];
