@@ -23,6 +23,8 @@ namespace FanController
         public byte DeviceID { get; set; }
         public string DeviveName { get; set; }
 
+        public DeviceCapabilities DeviceCapabilities { get; set; }
+
         internal FanController(SerialPortStream SerialPort, byte DeviceID)
         {
             this.SerialPort = SerialPort;
@@ -181,7 +183,6 @@ namespace FanController
 
         public async Task<ControllerConfig> GetThermalSensorCalibration()
         {
-            if (DeviceCapabilities == null) throw new ArgumentNullException("DeviceCapabilities unknown.");
             byte commandKey = Protocol.Request.RQST_GET_CAL_RESISTRS;
             
             ControllerConfig cc = new ControllerConfig();
@@ -254,8 +255,8 @@ namespace FanController
                         int di = i * 12;
                         for (int c = 0; c < 3; c++)
                         {
-                            int dc = c * 4;
-                            values[c] = BitConverter.ToSingle(data.AsSpan()[(di + dc)..(di + dc + 4)]);
+                            int idc = c * 4;
+                            values[c] = BitConverter.ToSingle(data.AsSpan()[(di + idc)..(di + idc + 4)]);
                         }
                         cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients = values;
                         Console.WriteLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
@@ -353,9 +354,6 @@ namespace FanController
 
         public async Task<Matrix> GetMatrix(byte channelId)
         {
-
-            if (DeviceCapabilities == null) throw new NotSupportedException("Device capabilities unknown at this point!");
-
             const byte commandKey = Protocol.Request.RQST_GET_MATRIX;
             byte[] payload = new byte[1];
             payload[0] = channelId;
@@ -412,8 +410,6 @@ namespace FanController
             Console.WriteLine($"Sending set curve command to controller with the id {this.DeviceID}...");
             await SendCommand(commandKey);
 
-            DeviceCapabilities dc;
-
             while (true)
             {
                 waitHandle.WaitOne();
@@ -428,7 +424,7 @@ namespace FanController
                 }
             }
 
-            return dc;
+            return null;
         }
         #endregion
     }
