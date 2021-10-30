@@ -493,42 +493,22 @@ float serialReadFloat() {
     return ((float*)buff)[0];
 }
 
-unsigned char serialReadLine(uint16_t timeout_ms, char buff[]) {
-    //loop until we have new data until we got a \n sequence.
-    timeout_ms /= 10;
-    unsigned char index = 0;
-
-    for (uint16_t to = 0; to < timeout_ms; to++) {
-        delay(10);
-        if (Serial.available()) {
-            buff[index++] = Serial.read();
-            if(buff[index]==0x0D)
-                break;
-        } else {
-            if(index+1>=64)
-                break;
-        }
-    }
-
-    //Flush all the rest
-    Serial.flush();
-
-    return index;
-}
-
 void say_hello() {
     Serial.print(IDMSG); Serial.write((unsigned char)EEPROM.read(EEPROM_ID_OFFSET));
+    Serial.flush();
 }
 
 void sendError(unsigned char err_code, unsigned char resp_code) {
     Serial.write((unsigned char)RESP_ERR);
     Serial.write(resp_code);
     Serial.write(err_code);
+    Serial.flush();
 }
 
 void sendOK(unsigned char resp_code) {
     Serial.write((unsigned char)RESP_OK);
     Serial.write(resp_code);
+    Serial.flush();
 }
 
 #pragma endregion SERIAL_TOOLS
@@ -1086,6 +1066,4 @@ void loop()
 
             break;
     }
-
-    Serial.flush();
 }
