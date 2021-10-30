@@ -9,6 +9,7 @@ namespace FanController
         public static async Task SendCommand(this SerialPortStream SerialPort, params byte[] data)
         {
             await SerialPort.WriteAsync(data, 0, data.Length);
+            SerialPort.Flush(); //Fix reliability issues
         }
 
         private static readonly BinaryFormatter BinaryFormatter = new();

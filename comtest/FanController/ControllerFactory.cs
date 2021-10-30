@@ -69,6 +69,21 @@ namespace FanController
                             contr.StartListening();
                             contr.DeviceCapabilities = await contr.GetDeviceCapabilities();
                             contr.ControllerConfig = await contr.GetControllerConfig();
+
+                            //Gather FanControlConfig
+                            FanControlConfig fcc = new FanControlConfig();
+
+                            fcc.Curves = new Curve[contr.DeviceCapabilities.NumberOfChannels];
+                            fcc.Matrixes = new Matrix[contr.DeviceCapabilities.NumberOfChannels];
+
+                            for (byte c = 0; c < contr.DeviceCapabilities.NumberOfChannels; c++)
+                            {
+                                fcc.Curves[c] = await contr.GetCurve(c);
+                                fcc.Matrixes[c] = await contr.GetMatrix(c);
+                            }
+
+                            contr.FanControlConfig = fcc;
+
                             controllers.Add(contr);
 
                             Console.WriteLine($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");

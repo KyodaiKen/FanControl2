@@ -1,5 +1,6 @@
 ﻿using FanController;
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -12,11 +13,13 @@ namespace comtest
         {
             controllers = await ControllerFactory.GetCompatibleDevicesAsync();
 
+            var sw_tests = new Stopwatch();
+            sw_tests.Start();
+
             foreach (var controller in controllers)
             {
                 controller.OnError += OnError;
                 controller.OnSensorsUpdate += OnSensorsUpdate;
-                controller.StartListening();
 
                 //Test EEPROM commands
                 //await controller.RequestStoreToEEPROM();
@@ -39,9 +42,6 @@ namespace comtest
                     }
                 });
 
-                //Get curve 0 for testing
-                await controller.GetCurve(0);
-
                 //Test set matrix 0 for testing
                 await controller.SetMatrix(0, new Matrix()
                 {
@@ -53,13 +53,19 @@ namespace comtest
                     }
                 });
 
-                //Get matrix 0 for testing
-                await controller.GetMatrix(0);
-
+                //Test get readings
+                var sw_readings = new Stopwatch();
+                sw_readings.Start();
                 await controller.GetReadings();
+                sw_readings.Stop();
+                Console.WriteLine($"GetReadings() took {sw_readings.ElapsedMilliseconds} ms");
 
+                //Test set config again
                 await controller.SetControllerConfig(controller.ControllerConfig);
             }
+
+            sw_tests.Stop();
+            Console.WriteLine($"Tests took {sw_tests.ElapsedTicks} ticks");
 
             Console.CancelKeyPress += Console_CancelKeyPress;
 
@@ -85,6 +91,7 @@ namespace comtest
             foreach (var item in controllers)
             {
                 item.StopListening();
+                item.Dispose();
             }
 
             Environment.Exit(0);

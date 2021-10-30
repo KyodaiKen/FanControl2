@@ -2,8 +2,9 @@
 
 namespace FanController
 {
-    public class FanController
+    public class FanController : IDisposable
     {
+        #region "Events"
         public delegate void SensorsUpdateEvent(byte DeviceId, object Data);
         public event SensorsUpdateEvent? OnSensorsUpdate;
 
@@ -15,16 +16,22 @@ namespace FanController
 
         private readonly SerialPortStream SerialPort;
         private bool Listening;
-
+        private bool disposedValue;
         private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
+        #endregion "Events"
 
+        #region "Private locals"
         private static readonly Dictionary<byte, byte[]> CommandAnswers = new();
+        #endregion "Private locals"
 
+        #region "Properties"
         public byte DeviceID { get; set; }
         public string DeviveName { get; set; }
 
         public DeviceCapabilities DeviceCapabilities { get; set; }
         public ControllerConfig ControllerConfig { get; set; }
+        public FanControlConfig FanControlConfig { get; set; }
+        #endregion "Properties"
 
         internal FanController(SerialPortStream SerialPort, byte DeviceID)
         {
@@ -123,6 +130,7 @@ namespace FanController
             if (SerialPort.IsOpen)
             {
                 SerialPort.Close();
+                SerialPort.Dispose();
             }
 
             Listening = false;
@@ -141,7 +149,7 @@ namespace FanController
             {
                 if (payload.Length > Protocol.BufferSize - 1)
                 {
-                    throw new ArgumentException($"Payload too big, currently is '{payload.Length}', and the max allowed is '{maxPayloadSize}'");
+                    throw new ArgumentException($"Payload '{payload.Length}' is too large. Maximum allowed is '{maxPayloadSize}'");
                 }
 
                 Array.Copy(payload, 0, preparedCommand, 1, payload.Length);
@@ -686,5 +694,36 @@ namespace FanController
             return true;
         }
         #endregion "Requests"
+
+        #region "IDisposable Implementation"
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    StopListening();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~FanController()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }
