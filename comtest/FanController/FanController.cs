@@ -24,6 +24,7 @@ namespace FanController
         public string DeviveName { get; set; }
 
         public DeviceCapabilities DeviceCapabilities { get; set; }
+        public ControllerConfig ControllerConfig { get; set; }
 
         internal FanController(SerialPortStream SerialPort, byte DeviceID)
         {
@@ -320,6 +321,9 @@ namespace FanController
                     // Convert data to curve
                     byte[] data = CommandAnswers[commandKey];
 
+                    //Check data length and validate it
+                    if (data.Length != DeviceCapabilities.NumberOfSensors * 4 + DeviceCapabilities.NumberOfChannels * 8) throw new ArgumentException("Data length does not match device capabilities.");
+
                     Console.WriteLine($"Data length: {data.Length}");
                     //Those offsets are headache to the power of 1000
 
@@ -529,19 +533,95 @@ namespace FanController
 
         public async Task<bool> SetControllerConfig(ControllerConfig ControllerConfig)
         {
-            const byte commandKey = Protocol.Request.RQST_SET_MATRIX;
+            byte commandKey = Protocol.Request.RQST_SET_CAL_RESISTRS;
 
-            Console.WriteLine($"Sending calibration resistor values to controller with the id {DeviceID}...");
+            Console.WriteLine($"Sending set calibration resistor values command to controller with the id {DeviceID}...");
 
-            #warning TODO send the damn data
+            byte[] payload = new byte[DeviceCapabilities.NumberOfSensors * 4];
 
-            byte[] payload = new byte[13];
-
-            payload[0] = 0;
-
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
             {
-                //Array.Copy(BitConverter.GetBytes(matrix.MatrixPoints[i]), 0, payload, i * 4 + 1, 4);
+                Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationResistorValue), 0, payload, i * 4, 4);
+            }
+
+            Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
+
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            commandKey = Protocol.Request.RQST_SET_CAL_OFFSETS;
+            Console.WriteLine($"Sending set calibration offsets command to controller with the id {DeviceID}...");
+
+            for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+            {
+                Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationOffset), 0, payload, i * 4, 4);
+            }
+
+            Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
+
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            commandKey = Protocol.Request.RQST_SET_CAL_SH_COEFFS;
+            Console.WriteLine($"Sending set calibration Steinhart-Hart coefficients command to controller with the id {DeviceID}...");
+
+            payload = new byte[DeviceCapabilities.NumberOfSensors * 12];
+
+            for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+            {
+                Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationSteinhartHartCoefficients[0]), 0, payload, i * 12, 4);
+                Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationSteinhartHartCoefficients[1]), 0, payload, i * 12 + 4, 4);
+                Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationSteinhartHartCoefficients[2]), 0, payload, i * 12 + 8, 4);
+            }
+
+            Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
+
+            await SendCommand(commandKey, payload);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            commandKey = Protocol.Request.RQST_SET_PINS;
+            Console.WriteLine($"Sending set pins command to controller with the id {DeviceID}...");
+
+            payload = new byte[DeviceCapabilities.NumberOfChannels + DeviceCapabilities.NumberOfSensors];
+
+            for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
+            {
+                payload[i] = ControllerConfig.ThermalSensors[i].Pin;
+            }
+
+            for (int i = 0; i < DeviceCapabilities.NumberOfChannels; i++)
+            {
+                payload[i + 3] = ControllerConfig.PWMChannels[i].Pin;
             }
 
             Console.WriteLine($"Sending payload {Convert.ToHexString(payload)}");
@@ -562,5 +642,49 @@ namespace FanController
             return true;
         }
         #endregion
+
+        #region "Requests"
+        public async Task<bool> RequestStoreToEEPROM()
+        {
+            const byte commandKey = Protocol.Request.RQST_WRITE_TO_EEPROM;
+
+            Console.WriteLine($"Sending RQST_WRITE_TO_EEPROM to controller with the id {DeviceID}...");
+            await SendCommand(commandKey);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            return true;
+        }
+
+        public async Task<bool> RequestReadFromEEPROM()
+        {
+            const byte commandKey = Protocol.Request.RQST_READ_FROM_EEPROM;
+
+            Console.WriteLine($"Sending RQST_READ_FROM_EEPROM to controller with the id {DeviceID}...");
+            await SendCommand(commandKey);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine("OK!");
+                    break;
+                }
+            }
+
+            return true;
+        }
+        #endregion "Requests"
     }
 }

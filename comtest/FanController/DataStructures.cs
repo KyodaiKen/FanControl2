@@ -23,6 +23,10 @@
     {
         public ThermalSensor[]? ThermalSensors { get; set; }
         public PWMChannel[]? PWMChannels { get; set; }
+    }
+
+    public class FanControlConfig
+    {
         public Matrix[]? Matrixes { get; set; }
         public Curve[]? Curves { get; set; }
     }

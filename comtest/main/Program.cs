@@ -18,6 +18,10 @@ namespace comtest
                 controller.OnSensorsUpdate += OnSensorsUpdate;
                 controller.StartListening();
 
+                //Test EEPROM commands
+                //await controller.RequestStoreToEEPROM();
+                //await controller.RequestReadFromEEPROM();
+
                 //Test set curve
                 await controller.SetCurve(0, new Curve()
                 {
@@ -53,6 +57,8 @@ namespace comtest
                 await controller.GetMatrix(0);
 
                 await controller.GetReadings();
+
+                await controller.SetControllerConfig(controller.ControllerConfig);
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;

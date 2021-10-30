@@ -19,7 +19,7 @@ namespace FanController
 
                 try
                 {
-#warning to do better implementation with logger
+                    #warning to do better implementation with logger
                     Console.WriteLine($"Opening {availablePort.Port} => {availablePort.Description}");
 
                     currentPort.Open();
@@ -68,7 +68,7 @@ namespace FanController
                             FanController contr = new FanController(currentPort, deviceId);
                             contr.StartListening();
                             contr.DeviceCapabilities = await contr.GetDeviceCapabilities();
-                            await contr.GetControllerConfig();
+                            contr.ControllerConfig = await contr.GetControllerConfig();
                             controllers.Add(contr);
 
                             Console.WriteLine($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");

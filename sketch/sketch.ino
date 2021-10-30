@@ -1071,16 +1071,16 @@ void loop()
 
             //Wait for the data
             timestamp = millis();
-            while (Serial.available() != N_SENSORS * 4 && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
+            while (Serial.available() != N_SENSORS + N_CURVES && millis() - timestamp < RXTX_TIMEOUT) doFanControl();
 
-            if(Serial.available() != N_SENSORS * 4)
+            if(Serial.available() != N_SENSORS + N_CURVES)
             {
                 sendError(ERR_TIMEOUT, request);
             }
             else
             {
                 for(i = 0; i < N_SENSORS; i++) thsp[i] = Serial.read();
-                for(i = 0; i < N_SENSORS; i++) cpp[i] = Serial.read();
+                for(i = 0; i < N_CURVES; i++) cpp[i] = Serial.read();
                 sendOK(request);
             }
 
