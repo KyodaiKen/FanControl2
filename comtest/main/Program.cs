@@ -9,7 +9,9 @@ namespace comtest
 {
     public static class Program
     {
-        static List<FanController> controllers;
+        private static List<FanController> controllers;
+
+        private static ILogger MainLogger;
         static async Task Main(/*string[] args*/)
         {
             var loggerFactory = LoggerFactory.Create(builder =>
@@ -19,9 +21,21 @@ namespace comtest
                     .AddFilter("Microsoft", LogLevel.Warning)
                     .AddFilter("System", LogLevel.Warning)
                     .AddConsole()
+                    .AddFile($"./Logs/{nameof(FanController)}-{{Date}}.txt", minimumLevel: LogLevel.Trace, levelOverrides: null, isJson: false, fileSizeLimitBytes: 1073741824, retainedFileCountLimit: 10);
                     //.AddEventLog()
                     ;
             });
+
+            MainLogger = loggerFactory.CreateLogger($"{nameof(Program)} => {nameof(Main)}");
+
+            MainLogger.LogTrace("ProgramStart");
+
+            //MainLogger.LogTrace("LogTrace");
+            //MainLogger.LogDebug("LogDebug");
+            //MainLogger.LogInformation("LogInformation");
+            //MainLogger.LogWarning("LogWarning");
+            //MainLogger.LogError("LogError");
+            //MainLogger.LogCritical("LogCritical");
 
             controllers = await ControllerFactory.GetCompatibleDevicesAsync(loggerFactory);
 
@@ -105,6 +119,8 @@ namespace comtest
                 item.StopListening();
                 item.Dispose();
             }
+
+            MainLogger.LogTrace("ProgramStop");
 
             Environment.Exit(0);
         }

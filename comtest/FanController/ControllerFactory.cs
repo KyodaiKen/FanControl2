@@ -38,48 +38,60 @@ namespace CustomFanController
                     for (int i = 0; i < Protocol.HandShake.AttemptsToConnect; i++)
                     {
                         var readTask = currentPort.ReadAsync(buffer).AsTask();
+                        var timeout = Task.Delay(Protocol.Timeout);
 
-                        if (await Task.WhenAny(readTask, Task.Delay(Protocol.Timeout)) == readTask)
+                        if (await Task.WhenAny(readTask, timeout) == timeout)
                         {
-                            // Sucess reading The buffer
+                            Logger?.LogWarning("Reading Timeout");
+                            continue;
+                        }
 
-                            var bytesReadCount = await readTask;
+                        // Sucess reading The buffer
 
-                            if (bytesReadCount < Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)
-                            {
-                                // Incompatible device falls here
-                                continue;
-                            }
+                        var bytesReadCount = await readTask;
 
-                            int start = 0;
-                            if (buffer[0] == Protocol.Status.RESP_ERR && buffer[1] == Protocol.Error.ERR_EEPROM)
-                            {
-                                start = 2;
-                                Logger?.LogWarning($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
-                            }
+                        const string IncompatibleDevice = "Incompatible Device";
 
-                            byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
-                            if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
-                            {
-                                // Incompatible device falls here
-                                continue;
-                            }
-
-                            deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
-
-                            var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)} => {currentPort} => {deviceId}");
-
-                            var contr = new FanController(currentPort, deviceId, loggerName);
-
-                            await contr.InitializeDevice();
-                            
-                            controllers.Add(contr);
-
-                            Logger?.LogInformation($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");
+                        if (bytesReadCount < Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)
+                        {
+#warning no deviceId may lead to here as well
+                            // Incompatible device falls here
+                            Logger?.LogWarning(IncompatibleDevice);
                             break;
                         }
+
+                        byte[] message = buffer[..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
+                        if (!message.SequenceEqual(Protocol.HandShake.ResponsePrefixHandShakeBytes))
+                        {
+                            // Incompatible device falls here
+                            Logger?.LogWarning(IncompatibleDevice);
+                            break;
+                        }
+
+#warning for protocol integrity, move this into the device initialization routine. I'ld recommend a class variable to store the data as well so it can be known by the end user
+                        int start = 0;
+                        if (buffer[0] == Protocol.Status.RESP_ERR && buffer[1] == Protocol.Error.ERR_EEPROM)
+                        {
+                            start = 2;
+                            Logger?.LogWarning($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
+                        }
+
+#warning check that, it may not be right
+                        deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
+
+                        var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)} => {currentPort} => {deviceId}");
+
+                        var contr = new FanController(currentPort, deviceId, loggerName);
+
+                        await contr.InitializeDevice();
+
+                        controllers.Add(contr);
+
+                        Logger?.LogInformation($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");
+                        break;
+
                     }
-                    
+
                 }
                 catch (Exception ex)
                 {
