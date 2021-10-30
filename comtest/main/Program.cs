@@ -51,6 +51,8 @@ namespace comtest
 
                 //Get matrix 0 for testing
                 await controller.GetMatrix(0);
+
+                await controller.GetReadings();
             }
 
             Console.CancelKeyPress += Console_CancelKeyPress;

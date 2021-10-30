@@ -37,9 +37,7 @@ namespace FanController
             internal const byte RQST_GET_CAL_OFFSETS = 0xAD;
             internal const byte RQST_GET_CAL_SH_COEFFS = 0xAE;
             internal const byte RQST_GET_PINS = 0xAF;
-            internal const byte RQST_GET_THERMAL_SENSORS = 0xBA;
-            internal const byte RQST_GET_MATRIX_RESULTS = 0xBB;
-            internal const byte RQST_GET_DUTY_CYCLES = 0xBC;
+            internal const byte RQST_GET_SENSOR_READINGS = 0xBA;
             internal const byte RQST_GET_ALL_SENSORS = 0xBD;
 
             internal const byte RQST_WRITE_TO_EEPROM = 0xDD;

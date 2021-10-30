@@ -301,6 +301,61 @@ namespace FanController
             return cc;
         }
 
+        public async Task<Readings> GetReadings()
+        {
+            Readings Readings = new Readings();
+
+            const byte commandKey = Protocol.Request.RQST_GET_SENSOR_READINGS;
+            Console.WriteLine($"Sending get readings command to controller with the id {this.DeviceID}...");
+            await SendCommand(commandKey);
+
+            while (true)
+            {
+                waitHandle.WaitOne();
+
+                if (CommandAnswers.ContainsKey(commandKey))
+                {
+                    Console.WriteLine($"Received data!");
+
+                    // Convert data to curve
+                    byte[] data = CommandAnswers[commandKey];
+
+                    Console.WriteLine($"Data length: {data.Length}");
+                    //Those offsets are headache to the power of 1000
+
+                    Readings.TemperatureReadings = new TemperatureReading[DeviceCapabilities.NumberOfSensors];
+
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < Readings.TemperatureReadings.Length; i++)
+                    {
+                        int di = i * 4;
+                        Readings.TemperatureReadings[i] = new TemperatureReading();
+                        Readings.TemperatureReadings[i].Temperature = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)]);
+
+                        Console.WriteLine($"Temperature sensor ... {i}: {Readings.TemperatureReadings[i].Temperature }");
+                    }
+
+                    Readings.ChannelReadings = new ChannelReading[DeviceCapabilities.NumberOfChannels];
+
+                    #warning Deserializing could be made better by just using a struct array and copy the data into it...
+                    for (int i = 0; i < Readings.TemperatureReadings.Length; i++)
+                    {
+                        int di = i * 8 + 12;
+                        Readings.ChannelReadings[i] = new ChannelReading();
+                        Readings.ChannelReadings[i].MatrixResult = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)]);
+                        Readings.ChannelReadings[i].DutyCycle = BitConverter.ToSingle(data.AsSpan()[(di + 4)..(di + 8)]);
+
+                        Console.WriteLine($"Matrix results channel {i}: {Readings.ChannelReadings[i].MatrixResult}");
+                        Console.WriteLine($"Duty cycle channel ... {i}: {Readings.ChannelReadings[i].DutyCycle}");
+                    }
+
+                    CommandAnswers.Remove(commandKey);
+
+                    return Readings;
+                }
+            }
+        }
+
         public async Task<Curve> GetCurve(byte channelId)
         {
             const byte commandKey = Protocol.Request.RQST_GET_CURVE;
