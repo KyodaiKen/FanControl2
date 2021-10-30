@@ -1,14 +1,16 @@
-﻿using System.Text;
+﻿using Microsoft.Extensions.Logging;
 using RJCP.IO.Ports;
 
-namespace FanController
+namespace CustomFanController
 {
     public class ControllerFactory
     {
 #warning linux may have issues
         //https://github.com/jcurl/RJCP.DLL.SerialPortStream#40-installation
-        public static async Task<List<FanController>> GetCompatibleDevicesAsync()
+        public static async Task<List<FanController>> GetCompatibleDevicesAsync(ILoggerFactory loggerFactory = null)
         {
+            var Logger = loggerFactory?.CreateLogger<ControllerFactory>();
+
             var controllers = new List<FanController>();
 
             var availablePortDescription = SerialPortStream.GetPortDescriptions();
@@ -19,8 +21,7 @@ namespace FanController
 
                 try
                 {
-                    #warning to do better implementation with logger
-                    Console.WriteLine($"Opening {availablePort.Port} => {availablePort.Description}");
+                    Logger?.LogInformation($"Opening {availablePort.Port} => {availablePort.Description}");
 
                     currentPort.Open();
 
@@ -38,7 +39,7 @@ namespace FanController
                     {
                         var readTask = currentPort.ReadAsync(buffer).AsTask();
 
-                        if (await Task.WhenAny(readTask, Task.Delay(Protocol.HandShake.Timeout)) == readTask)
+                        if (await Task.WhenAny(readTask, Task.Delay(Protocol.Timeout)) == readTask)
                         {
                             // Sucess reading The buffer
 
@@ -54,7 +55,7 @@ namespace FanController
                             if (buffer[0] == Protocol.Status.RESP_ERR && buffer[1] == Protocol.Error.ERR_EEPROM)
                             {
                                 start = 2;
-                                Console.WriteLine($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
+                                Logger?.LogWarning($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
                             }
 
                             byte[] message = buffer[start..(Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)];
@@ -65,28 +66,16 @@ namespace FanController
                             }
 
                             deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
-                            FanController contr = new FanController(currentPort, deviceId);
-                            contr.StartListening();
-                            contr.DeviceCapabilities = await contr.GetDeviceCapabilities();
-                            contr.ControllerConfig = await contr.GetControllerConfig();
 
-                            //Gather FanControlConfig
-                            FanControlConfig fcc = new FanControlConfig();
+                            var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)} => {currentPort} => {deviceId}");
 
-                            fcc.Curves = new Curve[contr.DeviceCapabilities.NumberOfChannels];
-                            fcc.Matrixes = new Matrix[contr.DeviceCapabilities.NumberOfChannels];
+                            var contr = new FanController(currentPort, deviceId, loggerName);
 
-                            for (byte c = 0; c < contr.DeviceCapabilities.NumberOfChannels; c++)
-                            {
-                                fcc.Curves[c] = await contr.GetCurve(c);
-                                fcc.Matrixes[c] = await contr.GetMatrix(c);
-                            }
-
-                            contr.FanControlConfig = fcc;
-
+                            await contr.InitializeDevice();
+                            
                             controllers.Add(contr);
 
-                            Console.WriteLine($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");
+                            Logger?.LogInformation($"Added controller with ID {deviceId} on {currentPort.PortName} to the controller pool!");
                             break;
                         }
                     }
@@ -94,12 +83,11 @@ namespace FanController
                 }
                 catch (Exception ex)
                 {
-#warning to do better implementation with logger
-                    Console.WriteLine(ex.ToString());
+                    Logger?.LogError(ex.ToString());
                 }
             }
 
-            Console.WriteLine($"Gathered {controllers.Count} controller" + (controllers.Count != 1 ? "s!" : "!"));
+            Logger?.LogInformation($"Gathered {controllers.Count} controller" + (controllers.Count != 1 ? "s!" : "!"));
             return controllers;
         }
     }

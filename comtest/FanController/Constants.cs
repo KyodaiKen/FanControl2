@@ -1,16 +1,17 @@
 ﻿using System.Text;
 
-namespace FanController
+namespace CustomFanController
 {
     internal static class Protocol
     {
-            internal const int BufferSize = 64;
+        internal const int BufferSize = 64;
+
+#warning adjust timeout
+        internal const int Timeout = 100000;
+        internal static readonly TimeSpan CommandAnswerTimeout = TimeSpan.FromSeconds(5);
 
         public static class HandShake
         {
-#warning adjust timeout
-            internal const int Timeout = 100000;
-
             internal const int BaudRate = 115200;
             internal const int AttemptsToConnect = 5;
             internal const string ResponsePrefixHandShake = "KyoudaiKen FCNG";
@@ -43,7 +44,7 @@ namespace FanController
             internal const byte RQST_WRITE_TO_EEPROM = 0xDD;
             internal const byte RQST_READ_FROM_EEPROM = 0xDF;
         }
-        
+
         ////RESPONSE BYTES////
         public static class Status
         {

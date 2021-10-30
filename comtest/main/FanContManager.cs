@@ -8,7 +8,7 @@ using RJCP.IO.Ports;
 
 namespace comtest
 {
-    public class FanController
+    public class FanControllerOld
     {
         ////ID MESSAGE////
         private const string IDMSG = "KyoudaiKen FCNG";
@@ -54,7 +54,7 @@ namespace comtest
 
         public string Name { get; set; }
 
-        public FanController(string portPath)
+        public FanControllerOld(string portPath)
         {
             uint l = 0;
             _port = new SerialPortStream(portPath, baudrate);
@@ -92,23 +92,23 @@ namespace comtest
 
     public class FanContManager
     {
-        private Dictionary<int, FanController> _controllers;
-        public Dictionary<int, FanController> Controllers { get { return _controllers; } }
+        private Dictionary<int, FanControllerOld> _controllers;
+        public Dictionary<int, FanControllerOld> Controllers { get { return _controllers; } }
         public FanContManager()
         {
             //Enumerate controllers "KyoudaiKen FCNG"
-            _controllers = new Dictionary<int, FanController>();
+            _controllers = new Dictionary<int, FanControllerOld>();
             foreach (string serialPortPath in SerialPortStream.GetPortNames())
             {
                 Console.WriteLine($"--> Probing port {serialPortPath}...");
                 try
                 {
-                    FanController candidate = new FanController(serialPortPath);
+                    FanControllerOld candidate = new FanControllerOld(serialPortPath);
                     //If there was no errors thrown, add it to our collection.
                     _controllers.Add(_controllers.Count + 1, candidate);
                     Console.WriteLine($"Controller on serial port {serialPortPath} added to controller pool");
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Console.WriteLine($"Ignored device on port {serialPortPath} because of following exception: ");
                     Console.WriteLine(e.ToString());

@@ -1,17 +1,29 @@
-﻿using FanController;
+﻿using CustomFanController;
 using System;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace comtest
 {
     public static class Program
     {
-        static List<global::FanController.FanController> controllers;
-        static async Task Main(string[] args)
+        static List<FanController> controllers;
+        static async Task Main(/*string[] args*/)
         {
-            controllers = await ControllerFactory.GetCompatibleDevicesAsync();
+            var loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder
+                    .SetMinimumLevel(LogLevel.Trace)
+                    .AddFilter("Microsoft", LogLevel.Warning)
+                    .AddFilter("System", LogLevel.Warning)
+                    .AddConsole()
+                    //.AddEventLog()
+                    ;
+            });
+
+            controllers = await ControllerFactory.GetCompatibleDevicesAsync(loggerFactory);
 
             var sw_tests = new Stopwatch();
             sw_tests.Start();

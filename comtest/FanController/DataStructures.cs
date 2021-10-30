@@ -1,4 +1,4 @@
-﻿namespace FanController
+﻿namespace CustomFanController
 {
     public class DeviceCapabilities
     {
