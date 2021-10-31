@@ -82,14 +82,14 @@ namespace comtest
                 sw_readings.Start();
                 await controller.GetReadings();
                 sw_readings.Stop();
-                Console.WriteLine($"GetReadings() took {sw_readings.ElapsedMilliseconds} ms");
+                MainLogger.LogTrace($"GetReadings() took {sw_readings.ElapsedMilliseconds} ms");
 
                 //Test set config again
                 await controller.SetControllerConfig(controller.ControllerConfig);
             }
 
             sw_tests.Stop();
-            Console.WriteLine($"Tests took {sw_tests.ElapsedTicks} ticks");
+            MainLogger.LogTrace($"Tests took {sw_tests.ElapsedTicks} ticks");
 
             Console.CancelKeyPress += Console_CancelKeyPress;
 

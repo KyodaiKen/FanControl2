@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using RJCP.IO.Ports;
+using System.Text;
 
 namespace CustomFanController
 {
@@ -182,13 +183,13 @@ namespace CustomFanController
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
             {
-                Logger?.LogInformation("Received data!");
-
                 dc = new DeviceCapabilities()
                 {
                     NumberOfSensors = data[0],
                     NumberOfChannels = data[1]
                 };
+
+                Logger?.LogInformation($"NumberOfSensors => {data[0]}, NumberOfChannels => {data[1]}");
             });
 
             return dc;
@@ -205,24 +206,24 @@ namespace CustomFanController
 
             Logger?.LogInformation($"Sending get calibration resistor values command to controller with the id {this.DeviceID}...");
             await SendCommand(commandKey);
+            var sb = new StringBuilder();
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
             {
-                Logger?.LogInformation("Received data!");
-
                 if (data.Length != DeviceCapabilities.NumberOfSensors * 4)
                 {
                     throw new ArgumentException("Controller returned the wrong number of sensor information");
                 }
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                 {
                     if (cc.ThermalSensors[i] == null) cc.ThermalSensors[i] = new ThermalSensor();
                     cc.ThermalSensors[i].CalibrationResistorValue = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
-                    Logger?.LogInformation($"Retrieved resistor value {cc.ThermalSensors[i].CalibrationResistorValue} for sensor ID {i}");
+                    sb.AppendLine($"Retrieved resistor value {cc.ThermalSensors[i].CalibrationResistorValue} for sensor ID {i}");
                 }
             });
+            Logger?.LogInformation(sb.ToString());
+            sb.Clear();
 
             commandKey = Protocol.Request.RQST_GET_CAL_OFFSETS;
             Logger?.LogInformation($"Sending get calibration offset values command to controller with the id {this.DeviceID}...");
@@ -230,8 +231,6 @@ namespace CustomFanController
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
             {
-                Logger?.LogInformation("Received data!");
-
                 if (data.Length != DeviceCapabilities.NumberOfSensors * 4)
                 {
                     throw new ArgumentException("Controller returned the wrong number of sensor information");
@@ -241,9 +240,12 @@ namespace CustomFanController
                 for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                 {
                     cc.ThermalSensors[i].CalibrationOffset = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
-                    Logger?.LogInformation($"Retrieved offset value {cc.ThermalSensors[i].CalibrationOffset} for sensor ID {i}");
+                    sb.AppendLine($"Retrieved offset value {cc.ThermalSensors[i].CalibrationOffset} for sensor ID {i}");
                 }
             });
+
+            Logger?.LogInformation(sb.ToString());
+            sb.Clear();
 
             commandKey = Protocol.Request.RQST_GET_CAL_SH_COEFFS;
             Logger?.LogInformation($"Sending get calibration Steinhart-Hart coefficients command to controller with the id {this.DeviceID}...");
@@ -267,9 +269,12 @@ namespace CustomFanController
                         values[c] = BitConverter.ToSingle(data.AsSpan()[(di + idc)..(di + idc + 4)]);
                     }
                     cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients = values;
-                    Logger?.LogInformation($"Retrieved Steinhart-Hart coefficients {string.Join(" ", cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
+                    sb.AppendLine($"Retrieved Steinhart-Hart coefficients {string.Join(" ", cc.ThermalSensors[i].CalibrationSteinhartHartCoefficients)} for sensor ID {i}");
                 }
             });
+
+            Logger?.LogInformation(sb.ToString());
+            sb.Clear();
 
             commandKey = Protocol.Request.RQST_GET_PINS;
             Logger?.LogInformation($"Sending get thermistor and PWM channel pin numbers command to controller with the id {this.DeviceID}...");
@@ -284,11 +289,10 @@ namespace CustomFanController
                     throw new ArgumentException("Controller returned the wrong number of sensor information");
                 }
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                 {
                     cc.ThermalSensors[i].Pin = data[i];
-                    Logger?.LogInformation($"Retrieved pin number for for sensor ID {i}: {data[i]}");
+                    sb.AppendLine($"Retrieved pin number for sensor ID {i}: {data[i]}");
                 }
 
                 for (int i = 0; i < DeviceCapabilities.NumberOfChannels; i++)
@@ -297,9 +301,12 @@ namespace CustomFanController
                     {
                         Pin = data[i + 3]
                     };
-                    Logger?.LogInformation($"Retrieved pin number for for PWM channel ID {i}: {data[i + 3]}");
+                    sb.AppendLine($"Retrieved pin number for PWM channel ID {i}: {data[i + 3]}");
                 }
             });
+
+            Logger?.LogInformation(sb.ToString());
+            sb.Clear();
 
             return cc;
         }
@@ -314,7 +321,9 @@ namespace CustomFanController
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
             {
-                Logger?.LogInformation("Received data!");
+                Logger?.LogInformation("Received data, length {data.Length}");
+
+                var sb = new StringBuilder();
 
                 // Convert data to curve
 
@@ -324,12 +333,8 @@ namespace CustomFanController
                     throw new ArgumentException("Data length does not match device capabilities.");
                 }
 
-                Logger?.LogInformation($"Data length: {data.Length}");
-                //Those offsets are headache to the power of 1000
-
                 Readings.TemperatureReadings = new TemperatureReading[DeviceCapabilities.NumberOfSensors];
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < Readings.TemperatureReadings.Length; i++)
                 {
                     int di = i * 4;
@@ -338,12 +343,11 @@ namespace CustomFanController
                         Temperature = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)])
                     };
 
-                    Logger?.LogInformation($"Temperature sensor ... {i}: {Readings.TemperatureReadings[i].Temperature }");
+                    sb.AppendLine($"Temperature sensor ... {i}: {Readings.TemperatureReadings[i].Temperature }");
                 }
 
                 Readings.ChannelReadings = new ChannelReading[DeviceCapabilities.NumberOfChannels];
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < Readings.TemperatureReadings.Length; i++)
                 {
                     int di = i * 8 + 12;
@@ -353,10 +357,10 @@ namespace CustomFanController
                         DutyCycle = BitConverter.ToSingle(data.AsSpan()[(di + 4)..(di + 8)])
                     };
 
-                    Logger?.LogInformation($"Matrix results channel {i}: {Readings.ChannelReadings[i].MatrixResult}");
-                    Logger?.LogInformation($"Duty cycle channel ... {i}: {Readings.ChannelReadings[i].DutyCycle}");
+                    sb.AppendLine($"Matrix results channel {i}: {Readings.ChannelReadings[i].MatrixResult}");
+                    sb.AppendLine($"Duty cycle channel ... {i}: {Readings.ChannelReadings[i].DutyCycle}");
                 }
-
+                Logger?.LogInformation(sb.ToString()); 
             });
 
             return Readings;
@@ -373,15 +377,15 @@ namespace CustomFanController
 
             var curve = new Curve();
 
+            var sb = new StringBuilder();
+
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (value) =>
             {
-                Logger?.LogInformation("Received data!");
-
                 // Convert data to curve
                 byte len = value[0];
                 byte[] data = value[1..]; //Remove the length from so we only have the curve data.
 
-                Logger?.LogInformation($"Data length: {len}");
+                sb.AppendLine($"Number of curve points: {len}");
 
                 CurvePoint[] cps = new CurvePoint[len];
                 //Those offsets are headache to the power of 1000
@@ -398,11 +402,13 @@ namespace CustomFanController
                         DutyCycle = dc
                     };
 
-                    Logger?.LogInformation($"Curve point {i}: {temp} => {dc} added!");
+                    sb.AppendLine($"Curve point {i}: {temp} => {dc} added!");
                 }
                 curve.ChannelId = channelId;
                 curve.CurvePoints = cps;
             });
+
+            Logger?.LogInformation(sb.ToString());
 
             return curve;
         }
@@ -418,21 +424,18 @@ namespace CustomFanController
 
             var matrixObj = new Matrix();
 
+            var sb = new StringBuilder();
+
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
             {
-                Logger?.LogInformation("Received data!");
-
-                // Convert data to curve
+                //Convert data to curve
                 //Remove the length from so we only have the curve data.
 
-                Logger?.LogInformation($"Data length: {DeviceCapabilities.NumberOfChannels} (from device capabilities), length from data: {data.Length / 4}");
+                sb.AppendLine($"Data length: {DeviceCapabilities.NumberOfChannels} (from device capabilities), length from data: {data.Length / 4}");
 
                 if (data.Length / 4 != DeviceCapabilities.NumberOfChannels)
                     throw new InvalidDataException("Returned data lentgh has a different length than expected according to" +
                         "the number of channels on this controller.");
-
-                //Those offsets are headache to the power of 1000
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
 
                 float[] matrix = new float[DeviceCapabilities.NumberOfChannels];
 
@@ -441,13 +444,17 @@ namespace CustomFanController
                     int di = i * 4;
                     matrix[i] = BitConverter.ToSingle(data.AsSpan()[di..(di + 4)]);
 
-                    Logger?.LogInformation($"{matrix[i]} ");
+                    sb.Append($"{matrix[i]} ");
                 }
+
+                sb.AppendLine();
 
                 matrixObj.ChannelId = channelId;
                 matrixObj.MatrixPoints = matrix;
 
             });
+
+            Logger?.LogInformation(sb.ToString());
 
             return matrixObj;
         }
