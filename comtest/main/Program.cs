@@ -30,13 +30,6 @@ namespace comtest
 
             MainLogger.LogTrace("ProgramStart");
 
-            //MainLogger.LogTrace("LogTrace");
-            //MainLogger.LogDebug("LogDebug");
-            //MainLogger.LogInformation("LogInformation");
-            //MainLogger.LogWarning("LogWarning");
-            //MainLogger.LogError("LogError");
-            //MainLogger.LogCritical("LogCritical");
-
             controllers = await ControllerFactory.GetCompatibleDevicesAsync(loggerFactory);
 
             if(controllers == null)

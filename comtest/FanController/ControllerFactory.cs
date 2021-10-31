@@ -79,7 +79,7 @@ namespace CustomFanController
 #warning check that, it may not be right
                         deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
 
-                        var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)} => {currentPort} => {deviceId}");
+                        var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)} => {currentPort.PortName} => {deviceId}");
 
                         var contr = new FanController(currentPort, deviceId, loggerName);
 
