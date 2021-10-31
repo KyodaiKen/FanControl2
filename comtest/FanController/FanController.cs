@@ -75,7 +75,7 @@ namespace CustomFanController
 
                     if (await Task.WhenAny(readTask, Task.Delay(Protocol.Timeout)) != readTask)
                     {
-                        const string errmsg = "Reading Info Timeout";
+                        const string errmsg = "Data receive timeout";
                         Logger?.LogWarning(errmsg);
                         OnWarning?.Invoke(DeviceID, errmsg);
                         continue;
@@ -83,15 +83,16 @@ namespace CustomFanController
 
                     var data = await readTask;
 
-#warning consider to append the buffer as base64 so we can debug if needed
-                    Logger?.LogTrace("Data Recived", data);
+                    Logger?.LogTrace($"Data Received {Convert.ToHexString(readBuffer[0..data])}");
 
 
                     if (data < 1)
                     {
-                        const string errmsg = "No data was read.";
+                        const string errmsg = "No data received!";
                         Logger?.LogError(errmsg);
                         OnError?.Invoke(DeviceID, errmsg);
+                        //Abort operation
+                        continue;
                     }
 
                     // Status Byte
@@ -99,9 +100,7 @@ namespace CustomFanController
 
                     if (status == Protocol.Status.RESP_ERR)
                     {
-                        const string errmsg = "The device responded with an error code.";
-#warning consider to append the buffer as base64 so we can debug if needed
-                        Logger?.LogError(errmsg, readBuffer);
+                        Logger?.LogError("Error received");
                         OnError?.Invoke(DeviceID, readBuffer);
                         // Abort Operation
                         continue;
@@ -109,17 +108,10 @@ namespace CustomFanController
 
                     if (status == Protocol.Status.RESP_WRN)
                     {
-                        const string errmsg = "The device responded with a warning code.";
-#warning consider to append the buffer as base64 so we can debug if needed
+                        const string errmsg = "Warning received";
                         Logger?.LogWarning(errmsg, readBuffer);
                         OnWarning?.Invoke(DeviceID, readBuffer);
                     }
-
-                    // Expected Behaviour
-                    //if (status == Commands.Status.RESP_OK)
-                    //{
-                    //    OnWarning?.Invoke(DeviceID, readBuffer);
-                    //}
 
                     // Kind of response Byte
                     var kind = readBuffer[1];
