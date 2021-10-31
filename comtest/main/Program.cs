@@ -12,7 +12,7 @@ namespace comtest
         private static List<FanController> controllers;
 
         private static ILogger MainLogger;
-        static async Task Main(/*string[] args*/)
+        static async Task<int> Main(/*string[] args*/)
         {
             var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -38,6 +38,11 @@ namespace comtest
             //MainLogger.LogCritical("LogCritical");
 
             controllers = await ControllerFactory.GetCompatibleDevicesAsync(loggerFactory);
+
+            if(controllers == null)
+            {
+                return 100; //Exit with error 100
+            }
 
             var sw_tests = new Stopwatch();
             sw_tests.Start();
@@ -96,6 +101,7 @@ namespace comtest
             Console.CancelKeyPress += Console_CancelKeyPress;
 
             await Task.Delay(-1);
+            return 0;
         }
 
         private static void OnSensorsUpdate(byte DeviceId, object Data)

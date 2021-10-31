@@ -7,7 +7,7 @@ namespace CustomFanController
     {
 #warning linux may have issues
         //https://github.com/jcurl/RJCP.DLL.SerialPortStream#40-installation
-        public static async Task<List<FanController>> GetCompatibleDevicesAsync(ILoggerFactory loggerFactory = null)
+        public static async Task<List<FanController>?> GetCompatibleDevicesAsync(ILoggerFactory loggerFactory = null)
         {
             var Logger = loggerFactory?.CreateLogger<ControllerFactory>();
 
@@ -95,11 +95,18 @@ namespace CustomFanController
                 }
                 catch (Exception ex)
                 {
-                    Logger?.LogError(ex.ToString());
+                    Logger?.LogWarning(ex.ToString());
                 }
             }
 
-            Logger?.LogInformation($"Gathered {controllers.Count} controller" + (controllers.Count != 1 ? "s!" : "!"));
+            if (controllers.Count < 1)
+            {
+                Logger?.LogCritical("No controllers found!");
+                return null;
+            }
+            else {
+                Logger?.LogInformation($"Gathered {controllers.Count} controller" + (controllers.Count != 1 ? "s!" : "!"));
+            }
             return controllers;
         }
     }

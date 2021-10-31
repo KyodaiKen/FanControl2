@@ -7,7 +7,7 @@ namespace CustomFanController
         internal const int BufferSize = 64;
 
 #warning adjust timeout
-        internal const int Timeout = 1000;
+        internal const int Timeout = 5000;
         internal static readonly TimeSpan CommandAnswerTimeout = TimeSpan.FromSeconds(5);
 
         public static class HandShake
