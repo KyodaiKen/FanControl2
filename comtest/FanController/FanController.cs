@@ -85,7 +85,6 @@ namespace CustomFanController
 
                     Logger?.LogTrace($"Data Received {Convert.ToHexString(readBuffer[0..data])}");
 
-
                     if (data < 1)
                     {
                         const string errmsg = "No data received!";
