@@ -12,7 +12,7 @@ namespace comtest
         private static List<FanController> controllers;
 
         private static ILogger MainLogger;
-        static async Task<int> Main(/*string[] args*/)
+        static async Task<int> Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder =>
             {

@@ -9,7 +9,7 @@ namespace CustomFanController
         //https://github.com/jcurl/RJCP.DLL.SerialPortStream#40-installation
         public static async Task<List<FanController>?> GetCompatibleDevicesAsync(ILoggerFactory loggerFactory = null)
         {
-            var Logger = loggerFactory?.CreateLogger<ControllerFactory>();
+            var Logger = loggerFactory?.CreateLogger($"{nameof(ControllerFactory)}");
 
             var controllers = new List<FanController>();
 
@@ -79,7 +79,7 @@ namespace CustomFanController
 #warning check that, it may not be right
                         deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
 
-                        var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)} => {currentPort.PortName} => {deviceId}");
+                        var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)}[{currentPort.PortName} {deviceId:X}]");
 
                         var contr = new FanController(currentPort, deviceId, loggerName);
 
