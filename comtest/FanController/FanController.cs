@@ -384,7 +384,7 @@ namespace CustomFanController
                     sb.AppendLine($"Matrix results channel {i}: {Readings.ChannelReadings[i].MatrixResult}");
                     sb.AppendLine($"Duty cycle channel ... {i}: {Readings.ChannelReadings[i].DutyCycle}");
                 }
-                Logger?.LogInformation(sb.ToString()); 
+                Logger?.LogDebug(sb.ToString()); 
             });
 
             return Readings;
@@ -431,7 +431,7 @@ namespace CustomFanController
                 curve.CurvePoints = cps;
             });
 
-            Logger?.LogInformation(sb.ToString());
+            Logger?.LogDebug(sb.ToString());
 
             return curve;
         }
@@ -477,7 +477,7 @@ namespace CustomFanController
 
             });
 
-            Logger?.LogInformation(sb.ToString());
+            Logger?.LogDebug(sb.ToString());
 
             return matrixObj;
         }
