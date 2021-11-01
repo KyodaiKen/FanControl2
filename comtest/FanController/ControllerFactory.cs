@@ -54,7 +54,6 @@ namespace CustomFanController
 
                         if (bytesReadCount < Protocol.HandShake.ResponsePrefixHandShakeBytes.Length)
                         {
-#warning no deviceId may lead to here as well
                             // Incompatible device falls here
                             Logger?.LogWarning(IncompatibleDevice);
                             break;
@@ -68,16 +67,7 @@ namespace CustomFanController
                             break;
                         }
 
-#warning for protocol integrity, move this into the device initialization routine. I'ld recommend a class variable to store the data as well so it can be known by the end user
-                        int start = 0;
-                        if (buffer[0] == Protocol.Status.RESP_ERR && buffer[1] == Protocol.Error.ERR_EEPROM)
-                        {
-                            start = 2;
-                            Logger?.LogWarning($"The controller on port {currentPort.PortName} had an EEPROM error and was reset to factory defaults!");
-                        }
-
-#warning check that, it may not be right
-                        deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length + start];
+                        deviceId = buffer[Protocol.HandShake.ResponsePrefixHandShakeBytes.Length];
 
                         var loggerName = loggerFactory?.CreateLogger($"{nameof(FanController)}[{currentPort.PortName} {deviceId:X}]");
 

@@ -18,7 +18,7 @@ namespace CustomFanController
 
         #endregion "Events"
 
-        #region "Private locals"
+        #region Private locals
 
         private readonly SerialPortStream SerialPort;
         // Message queue, it helps to sync the answers to the commands sent to the controller
@@ -28,16 +28,18 @@ namespace CustomFanController
         private readonly EventWaitHandle waitHandle = new AutoResetEvent(true);
 
         private readonly ILogger? Logger;
-        #endregion "Private locals"
+        #endregion
 
-        #region "Properties"
+        #region Properties
         public byte DeviceID { get; set; }
         public string DeviveName { get; set; }
+
+        public bool EEPROM_OK { get; private set; }
 
         public DeviceCapabilities DeviceCapabilities { get; set; }
         public ControllerConfig ControllerConfig { get; set; }
         public FanControlConfig FanControlConfig { get; set; }
-        #endregion "Properties"
+        #endregion
 
         internal FanController(SerialPortStream SerialPort, byte DeviceID, ILogger? Logger = null)
         {
@@ -46,7 +48,7 @@ namespace CustomFanController
             this.DeviceID = DeviceID;
         }
 
-        #region "Listener"
+        #region Listener
         public void StartListening()
         {
             if (Listening)
@@ -84,7 +86,7 @@ namespace CustomFanController
 
                     var data = await readTask;
 
-                    Logger?.LogTrace($"Data Received {Convert.ToHexString(readBuffer[0..data])}");
+                    Logger?.LogDebug($"Data Received {Convert.ToHexString(readBuffer[0..data])}");
 
                     if (data < 1)
                     {
@@ -167,15 +169,14 @@ namespace CustomFanController
 
             Listening = false;
         }
-
         #endregion
 
-        #region "GET"
+        #region Get Commands
         private async Task<DeviceCapabilities> GetDeviceCapabilities()
         {
             const byte commandKey = Protocol.Request.RQST_CAPABILITIES;
 
-            Logger?.LogInformation($"Sending get capabilities command to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get capabilities command...");
 
             await SendCommand(commandKey);
 
@@ -204,7 +205,7 @@ namespace CustomFanController
                 ThermalSensors = new ThermalSensor[DeviceCapabilities.NumberOfSensors]
             };
 
-            Logger?.LogInformation($"Sending get calibration resistor values command to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get calibration resistor values command...");
             await SendCommand(commandKey);
             var sb = new StringBuilder();
 
@@ -222,11 +223,11 @@ namespace CustomFanController
                     sb.AppendLine($"Retrieved resistor value {cc.ThermalSensors[i].CalibrationResistorValue} for sensor ID {i}");
                 }
             });
-            Logger?.LogInformation(sb.ToString());
+            Logger?.LogDebug(sb.ToString());
             sb.Clear();
 
             commandKey = Protocol.Request.RQST_GET_CAL_OFFSETS;
-            Logger?.LogInformation($"Sending get calibration offset values command to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get calibration offset values command...");
             await SendCommand(commandKey);
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
@@ -236,7 +237,6 @@ namespace CustomFanController
                     throw new ArgumentException("Controller returned the wrong number of sensor information");
                 }
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                 {
                     cc.ThermalSensors[i].CalibrationOffset = BitConverter.ToSingle(data.AsSpan()[(i * 4)..(i * 4 + 4)]);
@@ -244,11 +244,11 @@ namespace CustomFanController
                 }
             });
 
-            Logger?.LogInformation(sb.ToString());
+            Logger?.LogDebug(sb.ToString());
             sb.Clear();
 
             commandKey = Protocol.Request.RQST_GET_CAL_SH_COEFFS;
-            Logger?.LogInformation($"Sending get calibration Steinhart-Hart coefficients command to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get calibration Steinhart-Hart coefficients command...");
             await SendCommand(commandKey);
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
@@ -258,7 +258,6 @@ namespace CustomFanController
                     throw new ArgumentException("Controller returned the wrong number of sensor information");
                 }
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
                 {
                     float[] values = new float[3];
@@ -273,11 +272,11 @@ namespace CustomFanController
                 }
             });
 
-            Logger?.LogInformation(sb.ToString());
+            Logger?.LogDebug(sb.ToString());
             sb.Clear();
 
             commandKey = Protocol.Request.RQST_GET_PINS;
-            Logger?.LogInformation($"Sending get thermistor and PWM channel pin numbers command to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get thermistor and PWM channel pin numbers command...");
             cc.PWMChannels = new PWMChannel[DeviceCapabilities.NumberOfChannels];
 
             await SendCommand(commandKey);
@@ -305,8 +304,33 @@ namespace CustomFanController
                 }
             });
 
-            Logger?.LogInformation(sb.ToString());
+
+            Logger?.LogDebug(sb.ToString());
             sb.Clear();
+
+            //Check EEPROM health
+            commandKey = Protocol.Request.RQST_GET_EERPOM_HEALTH;
+            Logger?.LogInformation($"Sending get EEPROM health command...");
+
+            await SendCommand(commandKey);
+
+            await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
+            {
+                if(data[0] == 0x01)
+                {
+                    EEPROM_OK = true;
+                    Logger?.LogInformation("EEPROM OK!");
+                }
+                else
+                {
+                    EEPROM_OK = false;
+                }
+            });
+
+            if(!EEPROM_OK)
+            {
+                Logger?.LogWarning($"The controller had an EEPROM error and was reset to factory defaults!");
+            }
 
             return cc;
         }
@@ -316,12 +340,12 @@ namespace CustomFanController
             var Readings = new Readings();
 
             const byte commandKey = Protocol.Request.RQST_GET_SENSOR_READINGS;
-            Logger?.LogInformation($"Sending get readings command to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get readings command...");
             await SendCommand(commandKey);
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
             {
-                Logger?.LogInformation("Received data, length {data.Length}");
+                Logger?.LogInformation($"Received data, length {data.Length}");
 
                 var sb = new StringBuilder();
 
@@ -372,7 +396,7 @@ namespace CustomFanController
             byte[] payload = new byte[1];
             payload[0] = channelId;
 
-            Logger?.LogInformation($"Sending get curve command for curve ID {channelId} to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get curve command for curve ID {channelId}...");
             await SendCommand(commandKey, payload);
 
             var curve = new Curve();
@@ -390,7 +414,6 @@ namespace CustomFanController
                 CurvePoint[] cps = new CurvePoint[len];
                 //Those offsets are headache to the power of 1000
 
-#warning Deserializing could be made better by just using a struct array and copy the data into it...
                 for (int i = 0; i < len; i++)
                 {
                     int di = i * 5;
@@ -419,7 +442,7 @@ namespace CustomFanController
             byte[] payload = new byte[1];
             payload[0] = channelId;
 
-            Logger?.LogInformation($"Sending get matrix command for channel ID {channelId} to controller with the id {this.DeviceID}...");
+            Logger?.LogInformation($"Sending get matrix command for channel ID {channelId}...");
             await SendCommand(commandKey, payload);
 
             var matrixObj = new Matrix();
@@ -460,12 +483,12 @@ namespace CustomFanController
         }
         #endregion
 
-        #region "SET"
+        #region Set Commands
         public async Task<bool> SetCurve(byte curveID, Curve curve)
         {
             const byte commandKey = Protocol.Request.RQST_SET_CURVE;
 
-            Logger?.LogInformation($"Sending set curve command to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending set curve command...");
 
             int ncp = curve.CurvePoints.Length;
             byte[] payload = new byte[ncp * 5 + 2];
@@ -479,7 +502,7 @@ namespace CustomFanController
                 payload[i * 5 + 6] = curve.CurvePoints[i].DutyCycle;
             }
 
-            Logger?.LogInformation($"Sending payload {Convert.ToHexString(payload)}");
+            Logger?.LogDebug($"Sending payload {Convert.ToHexString(payload)}");
 
             await SendCommand(commandKey, payload);
 
@@ -495,7 +518,7 @@ namespace CustomFanController
         {
             const byte commandKey = Protocol.Request.RQST_SET_MATRIX;
 
-            Logger?.LogInformation($"Sending set matrix command to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending set matrix command...");
 
             byte[] payload = new byte[13];
 
@@ -506,7 +529,7 @@ namespace CustomFanController
                 Array.Copy(BitConverter.GetBytes(matrix.MatrixPoints[i]), 0, payload, i * 4 + 1, 4);
             }
 
-            Logger?.LogInformation($"Sending payload {Convert.ToHexString(payload)}");
+            Logger?.LogDebug($"Sending payload {Convert.ToHexString(payload)}");
 
             await SendCommand(commandKey, payload);
 
@@ -522,7 +545,7 @@ namespace CustomFanController
         {
             byte commandKey = Protocol.Request.RQST_SET_CAL_RESISTRS;
 
-            Logger?.LogInformation($"Sending set calibration resistor values command to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending set calibration resistor values command...");
 
             byte[] payload = new byte[DeviceCapabilities.NumberOfSensors * 4];
 
@@ -531,7 +554,7 @@ namespace CustomFanController
                 Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationResistorValue), 0, payload, i * 4, 4);
             }
 
-            Logger?.LogInformation($"Sending payload {Convert.ToHexString(payload)}");
+            Logger?.LogDebug($"Sending payload {Convert.ToHexString(payload)}");
 
             await SendCommand(commandKey, payload);
 
@@ -541,14 +564,14 @@ namespace CustomFanController
             });
 
             commandKey = Protocol.Request.RQST_SET_CAL_OFFSETS;
-            Logger?.LogInformation($"Sending set calibration offsets command to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending set calibration offsets command...");
 
             for (int i = 0; i < DeviceCapabilities.NumberOfSensors; i++)
             {
                 Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationOffset), 0, payload, i * 4, 4);
             }
 
-            Logger?.LogInformation($"Sending payload {Convert.ToHexString(payload)}");
+            Logger?.LogDebug($"Sending payload {Convert.ToHexString(payload)}");
 
             await SendCommand(commandKey, payload);
 
@@ -558,7 +581,7 @@ namespace CustomFanController
             });
 
             commandKey = Protocol.Request.RQST_SET_CAL_SH_COEFFS;
-            Logger?.LogInformation($"Sending set calibration Steinhart-Hart coefficients command to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending set calibration Steinhart-Hart coefficients command...");
 
             payload = new byte[DeviceCapabilities.NumberOfSensors * 12];
 
@@ -569,7 +592,7 @@ namespace CustomFanController
                 Array.Copy(BitConverter.GetBytes(ControllerConfig.ThermalSensors[i].CalibrationSteinhartHartCoefficients[2]), 0, payload, i * 12 + 8, 4);
             }
 
-            Logger?.LogInformation($"Sending payload {Convert.ToHexString(payload)}");
+            Logger?.LogDebug($"Sending payload {Convert.ToHexString(payload)}");
 
             await SendCommand(commandKey, payload);
 
@@ -579,7 +602,7 @@ namespace CustomFanController
             });
 
             commandKey = Protocol.Request.RQST_SET_PINS;
-            Logger?.LogInformation($"Sending set pins command to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending set pins command...");
 
             payload = new byte[DeviceCapabilities.NumberOfChannels + DeviceCapabilities.NumberOfSensors];
 
@@ -593,7 +616,7 @@ namespace CustomFanController
                 payload[i + 3] = ControllerConfig.PWMChannels[i].Pin;
             }
 
-            Logger?.LogInformation($"Sending payload {Convert.ToHexString(payload)}");
+            Logger?.LogDebug($"Sending payload {Convert.ToHexString(payload)}");
 
             await SendCommand(commandKey, payload);
 
@@ -606,12 +629,12 @@ namespace CustomFanController
         }
         #endregion
 
-        #region "Requests"
+        #region Requests
         public async Task<bool> RequestStoreToEEPROM()
         {
             const byte commandKey = Protocol.Request.RQST_WRITE_TO_EEPROM;
 
-            Logger?.LogInformation($"Sending RQST_WRITE_TO_EEPROM to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending RQST_WRITE_TO_EEPROM...");
             await SendCommand(commandKey);
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
@@ -626,7 +649,7 @@ namespace CustomFanController
         {
             const byte commandKey = Protocol.Request.RQST_READ_FROM_EEPROM;
 
-            Logger?.LogInformation($"Sending RQST_READ_FROM_EEPROM to controller with the id {DeviceID}...");
+            Logger?.LogInformation($"Sending RQST_READ_FROM_EEPROM...");
             await SendCommand(commandKey);
 
             await DoWhenAnswerRecivedWithTimeoutAsync(commandKey, (data) =>
@@ -636,8 +659,7 @@ namespace CustomFanController
 
             return true;
         }
-        #endregion "Requests"
-
+        #endregion
 
         #region Helpers
 
@@ -710,7 +732,7 @@ namespace CustomFanController
 
         #endregion  Helpers
 
-        #region "IDisposable Implementation"
+        #region IDisposable Implementation
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)

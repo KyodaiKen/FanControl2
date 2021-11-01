@@ -6,7 +6,6 @@ namespace CustomFanController
     {
         internal const int BufferSize = 64;
 
-#warning adjust timeout
         internal const int Timeout = 5000;
         internal static readonly TimeSpan CommandAnswerTimeout = TimeSpan.FromSeconds(5);
 
@@ -24,14 +23,6 @@ namespace CustomFanController
             internal const byte RQST_IDENTIFY = 0xF0;
             internal const byte RQST_CAPABILITIES = 0xFC;
 
-            internal const byte RQST_SET_CURVE = 0xA0;
-            internal const byte RQST_SET_MATRIX = 0xA1;
-            internal const byte RQST_SET_ID = 0xA2;
-            internal const byte RQST_SET_CAL_RESISTRS = 0xA3;
-            internal const byte RQST_SET_CAL_OFFSETS = 0xA4;
-            internal const byte RQST_SET_CAL_SH_COEFFS = 0xA5;
-            internal const byte RQST_SET_PINS = 0xA6;
-
             internal const byte RQST_GET_CURVE = 0xAA;
             internal const byte RQST_GET_MATRIX = 0xAB;
             internal const byte RQST_GET_CAL_RESISTRS = 0xAC;
@@ -39,7 +30,16 @@ namespace CustomFanController
             internal const byte RQST_GET_CAL_SH_COEFFS = 0xAE;
             internal const byte RQST_GET_PINS = 0xAF;
             internal const byte RQST_GET_SENSOR_READINGS = 0xBA;
+            internal const byte RQST_GET_EERPOM_HEALTH = 0xE0;
             internal const byte RQST_GET_ALL_SENSORS = 0xBD;
+            
+            internal const byte RQST_SET_CURVE = 0xA0;
+            internal const byte RQST_SET_MATRIX = 0xA1;
+            internal const byte RQST_SET_ID = 0xA2;
+            internal const byte RQST_SET_CAL_RESISTRS = 0xA3;
+            internal const byte RQST_SET_CAL_OFFSETS = 0xA4;
+            internal const byte RQST_SET_CAL_SH_COEFFS = 0xA5;
+            internal const byte RQST_SET_PINS = 0xA6;
 
             internal const byte RQST_WRITE_TO_EEPROM = 0xDD;
             internal const byte RQST_READ_FROM_EEPROM = 0xDF;

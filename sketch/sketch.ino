@@ -1,4 +1,4 @@
-//ArduPWM PC fan controller Mk IV - OCT 26 2021
+//ArduPWM PC fan controller Mk IV - NOV 01 2021
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
 //#include <arduino.h>
 #include <stdlib.h>
@@ -17,6 +17,15 @@
 #define RQST_IDENTIFY 0xF0
 #define RQST_CAPABILITIES 0xFC
 
+#define RQST_GET_CURVE 0xAA
+#define RQST_GET_MATRIX 0xAB
+#define RQST_GET_CAL_RESISTRS 0xAC
+#define RQST_GET_CAL_OFFSETS 0xAD
+#define RQST_GET_CAL_SH_COEFFS 0xAE
+#define RQST_GET_EERPOM_HEALTH 0xE0
+#define RQST_GET_PINS 0xAF
+#define RQST_GET_SENSOR_READINGS 0xBA
+
 #define RQST_SET_CURVE 0xA0
 #define RQST_SET_MATRIX 0xA1
 #define RQST_SET_ID 0xA2
@@ -24,14 +33,6 @@
 #define RQST_SET_CAL_OFFSETS 0xA4
 #define RQST_SET_CAL_SH_COEFFS 0xA5
 #define RQST_SET_PINS 0xA6
-
-#define RQST_GET_CURVE 0xAA
-#define RQST_GET_MATRIX 0xAB
-#define RQST_GET_CAL_RESISTRS 0xAC
-#define RQST_GET_CAL_OFFSETS 0xAD
-#define RQST_GET_CAL_SH_COEFFS 0xAE
-#define RQST_GET_PINS 0xAF
-#define RQST_GET_SENSOR_READINGS 0xBA
 
 #define RQST_WRITE_TO_EEPROM 0xDD
 #define RQST_READ_FROM_EEPROM 0xDF
@@ -110,6 +111,7 @@ curvePoint cdta[N_CURVES][CURVE_UB];
 unsigned char cdtal[N_CURVES];
 float m[N_CURVES][N_SENSORS];
 
+bool eeprom_warning = false;
 bool is_eeprom_ok = false;
 #pragma endregion WORKING_VARIABLES
 
@@ -688,8 +690,7 @@ void setup()
         readMatrix();
         #endif
         
-        Serial.write(RESP_ERR);
-        Serial.write(ERR_EEPROM);
+        eeprom_warning = true;
         is_eeprom_ok = true;
     }
     else
@@ -743,6 +744,21 @@ void loop()
             sendOK(request);
             Serial.write((unsigned char)N_SENSORS);
             Serial.write((unsigned char)N_CURVES);
+
+            break;
+
+        case RQST_GET_EERPOM_HEALTH:
+
+            if(eeprom_warning)
+            {
+                sendOK(request);
+                Serial.write((unsigned char)0x00);
+            }
+            else
+            {
+                sendOK(request);
+                Serial.write((unsigned char)0x01);
+            }
 
             break;
         case RQST_GET_SENSOR_READINGS:
