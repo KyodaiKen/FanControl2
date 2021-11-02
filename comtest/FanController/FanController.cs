@@ -31,7 +31,7 @@ namespace CustomFanController
 
         #region "Properties"
         public byte DeviceID { get; set; }
-        public string DeviveName { get; set; }
+        public string DeviceName { get; set; }
 
         public DeviceCapabilities DeviceCapabilities { get; set; }
         public ControllerConfig ControllerConfig { get; set; }
