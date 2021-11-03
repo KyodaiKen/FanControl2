@@ -12,7 +12,7 @@ namespace comtest
         private static List<FanController> controllers;
 
         private static ILogger MainLogger;
-        static async Task Main(/*string[] args*/)
+        static async Task<int> Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -30,14 +30,12 @@ namespace comtest
 
             MainLogger.LogTrace("ProgramStart");
 
-            //MainLogger.LogTrace("LogTrace");
-            //MainLogger.LogDebug("LogDebug");
-            //MainLogger.LogInformation("LogInformation");
-            //MainLogger.LogWarning("LogWarning");
-            //MainLogger.LogError("LogError");
-            //MainLogger.LogCritical("LogCritical");
-
             controllers = await ControllerFactory.GetCompatibleDevicesAsync(loggerFactory);
+
+            if(controllers == null)
+            {
+                return 100; //Exit with error 100
+            }
 
             var sw_tests = new Stopwatch();
             sw_tests.Start();
@@ -84,18 +82,19 @@ namespace comtest
                 sw_readings.Start();
                 await controller.GetReadings();
                 sw_readings.Stop();
-                Console.WriteLine($"GetReadings() took {sw_readings.ElapsedMilliseconds} ms");
+                MainLogger.LogTrace($"GetReadings() took {sw_readings.ElapsedMilliseconds} ms");
 
                 //Test set config again
                 await controller.SetControllerConfig(controller.ControllerConfig);
             }
 
             sw_tests.Stop();
-            Console.WriteLine($"Tests took {sw_tests.ElapsedTicks} ticks");
+            MainLogger.LogTrace($"Tests took {sw_tests.ElapsedTicks} ticks");
 
             Console.CancelKeyPress += Console_CancelKeyPress;
 
             await Task.Delay(-1);
+            return 0;
         }
 
         private static void OnSensorsUpdate(byte DeviceId, object Data)
