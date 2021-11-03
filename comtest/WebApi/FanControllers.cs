@@ -11,9 +11,7 @@ namespace WebApi
 
             var task = ControllerFactory.GetCompatibleDevicesAsync(loggerFactory);
 
-            task.GetAwaiter().GetResult();
-
-            Controllers = task.Result;
+            Controllers = task.GetAwaiter().GetResult();
         }
     }
 }
