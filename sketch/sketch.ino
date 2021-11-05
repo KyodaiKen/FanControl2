@@ -1,4 +1,4 @@
-//ArduPWM PC fan controller Mk IV - NOV 01 2021
+//ArduPWM PC fan controller Mk IV - NOV 03 2021
 //By Kyoudai Ken @Kyoudai_Ken (Twitter.com)
 //#include <arduino.h>
 #include <stdlib.h>
@@ -54,7 +54,7 @@
 #define N_SENSORS 3
 #define N_CURVES 3
 #define N_TEMP_PROBE_TESTS 1
-#define N_RAVG 67 //memory hog!!!
+#define N_RAVG 72 //memory hog!!!
 
 //Curve data layout
 #define CURVE_UB 12
@@ -390,7 +390,7 @@ void getTemperatures()
 }
 
 //Just to make the control loop more clean
-void setPulseWith(int pin, float pv)
+void setPulseWith(int pin, float dc)
 {
     float upper_bound;
     switch (pin)
@@ -402,7 +402,7 @@ void setPulseWith(int pin, float pv)
             upper_bound = ICR1;
             break;
     }
-    analogWrite(pin, round(pv / 100 * upper_bound));
+    analogWrite(pin, round(dc / 100 * upper_bound));
 }
 
 //Calculate the dutycycle by interpolating between the curve points
@@ -422,8 +422,6 @@ float getDutyCycle(unsigned int c, float mt)
             break;
         }
     }
-
-    //Serial.println(cdta[c][0].dc);
 
     //In case the curve doesn't start with temp 0 or the temperature is below the minimum curve point, return lowest duty cycle
     if(p0 < 0) return cdta[c][0].dc;
@@ -470,7 +468,7 @@ void setDutyCycles()
     #ifdef DEBUG
     Serial.println();
     #endif
-    delay(10);
+    delay(27);
 }
 
 void doFanControl() {
