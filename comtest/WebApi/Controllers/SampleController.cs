@@ -29,8 +29,8 @@ namespace WebApi.Controllers
             return available;
         }
 
-        [HttpGet(nameof(GetInfo))]
-        public async Task<IEnumerable<Readings>> GetInfo()
+        [HttpGet(nameof(GetReadings))]
+        public async Task<IEnumerable<Readings>> GetReadings()
         {
             var readings = new List<Readings>();
 
